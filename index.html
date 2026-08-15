@@ -1,0 +1,3520 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CUE STUDIO · 斯諾克與中式桌球賽事計分與寫實對戰系統</title>
+  
+  <!-- Modern Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Noto+Sans+TC:wght@400;500;600;700;900&family=Outfit:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', '"Noto Sans TC"', 'system-ui', 'sans-serif'],
+            display: ['"Syne"', '"Outfit"', '"Noto Sans TC"', 'sans-serif'],
+            num: ['"Outfit"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          },
+          colors: {
+            brand: {
+              gold: '#fcd34d',
+              goldHover: '#fde68a',
+              amber: '#f59e0b',
+              emerald: '#10b981',
+              cyan: '#38bdf8',
+              ruby: '#f43f5e',
+              purple: '#a855f7',
+              onyx: '#080705',
+              darkGold: '#b45309'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <!-- MQTT.js for Real-Time Cross-Device Room Synchronization -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.3.5/mqtt.min.js"></script>
+
+  <style>
+    /*
+     * Design System: Black & Gold Royale + Official Snooker Physics & Rules Engine
+     * Specifications:
+     * - Dark obsidian void + brushed champagne gold UI
+     * - 22px rounded corners (rounded-[22px]) on glass-morphism panels
+     * - Standard 6:11 Snooker Match Table with Strachan English Green felt texture
+     * - Official 15 Reds + 6 Colors on spots + D-zone + Baulk line
+     * - Modularized: Renderer, PhysicsEngine, RefereeRulesEngine (Strict No-Bug Validations), InteractionController
+     * - Real-time Aiming Auxiliary Lines (Cue Ray, Target Path, 90-degree Separation Tangent)
+     */
+    :root {
+      --black-void: #020202;
+      --onyx-deep: #080705;
+      --onyx-surface: #120f0a;
+      --gold-core: #fcd34d;
+      --gold-amber: #f59e0b;
+      --gold-deep: #b45309;
+      --gold-glow: rgba(252, 211, 77, 0.28);
+      --cyan-core: #38bdf8;
+      --cyan-glow: rgba(56, 189, 248, 0.28);
+      --spring-ease: cubic-bezier(0.2, 0, 0.2, 1);
+    }
+
+    * {
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', 'Noto Sans TC', system-ui, sans-serif;
+      background-color: var(--black-void);
+      color: #f8fafc;
+      touch-action: manipulation;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(ellipse 95% 55% at 50% -12%, rgba(252, 211, 77, 0.22) 0%, transparent 62%),
+        radial-gradient(circle 800px at 90% 85%, rgba(180, 83, 9, 0.18) 0%, transparent 52%),
+        radial-gradient(circle 600px at 10% 90%, rgba(245, 158, 11, 0.14) 0%, transparent 48%),
+        linear-gradient(180deg, #020202 0%, #0a0805 50%, #020202 100%);
+      background-attachment: fixed;
+    }
+
+    /* Ambient Champagne Gold Lighting Cone */
+    .table-canopy-light {
+      position: fixed;
+      top: -160px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1050px;
+      height: 500px;
+      background: radial-gradient(ellipse at center, rgba(252, 211, 77, 0.26) 0%, rgba(217, 119, 6, 0.12) 42%, transparent 72%);
+      filter: blur(85px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Subtle Gold Stardust Overlay */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      opacity: 0.16;
+      background-image: 
+        radial-gradient(rgba(252, 211, 77, 0.2) 1px, transparent 1px),
+        radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+      background-size: 28px 28px, 56px 56px;
+      background-position: 0 0, 14px 14px;
+      pointer-events: none;
+    }
+
+    /* Obsidian Glass-Morphism 22px Rounded Cards */
+    .glass-tile {
+      background: linear-gradient(135deg, rgba(24, 20, 14, 0.82) 0%, rgba(10, 8, 6, 0.92) 100%);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      border: 1px solid rgba(252, 211, 77, 0.22);
+      border-radius: 22px;
+      box-shadow: 
+        0 18px 40px -10px rgba(0, 0, 0, 0.88),
+        inset 0 1px 0 rgba(252, 211, 77, 0.2),
+        inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+      transition: transform 0.28s var(--spring-ease), box-shadow 0.28s var(--spring-ease), border-color 0.28s var(--spring-ease);
+      will-change: transform;
+      backface-visibility: hidden;
+    }
+
+    .glass-tile:hover {
+      transform: translateY(-4px) scale(1.01);
+      box-shadow: 
+        0 24px 48px -8px rgba(0, 0, 0, 0.95),
+        0 0 25px rgba(252, 211, 77, 0.25),
+        inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      border-color: rgba(252, 211, 77, 0.45);
+    }
+
+    .glass-tile-gold {
+      background: linear-gradient(135deg, rgba(38, 30, 18, 0.85) 0%, rgba(16, 12, 8, 0.94) 100%);
+      backdrop-filter: blur(28px) saturate(180%);
+      -webkit-backdrop-filter: blur(28px) saturate(180%);
+      border: 1.5px solid rgba(252, 211, 77, 0.48);
+      border-radius: 22px;
+      box-shadow: 
+        0 22px 48px -10px rgba(0, 0, 0, 0.92),
+        0 0 30px -5px rgba(252, 211, 77, 0.28),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transition: transform 0.28s var(--spring-ease), box-shadow 0.28s var(--spring-ease);
+    }
+
+    .glass-capsule {
+      background: rgba(18, 14, 10, 0.82);
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      border: 1px solid rgba(252, 211, 77, 0.2);
+      border-radius: 22px;
+      box-shadow: inset 0 1px 0 rgba(252, 211, 77, 0.15);
+    }
+
+    /* Spring Action Buttons */
+    .tactile-press {
+      transition: transform 0.28s var(--spring-ease), filter 0.28s var(--spring-ease), box-shadow 0.28s var(--spring-ease);
+      user-select: none;
+      -webkit-user-select: none;
+      will-change: transform;
+    }
+    .tactile-press:hover {
+      filter: brightness(1.12);
+      transform: translateY(-2px);
+    }
+    .tactile-press:active {
+      transform: translateY(2px) scale(0.98) !important;
+      filter: brightness(0.92);
+    }
+
+    /* 3D Photorealistic Billiard Spheres for Keypads */
+    .sphere-ball {
+      position: relative;
+      border-radius: 9999px;
+      user-select: none;
+      cursor: pointer;
+      box-shadow: 
+        inset -10px -12px 18px rgba(0, 0, 0, 0.88),
+        inset 6px 7px 12px rgba(255, 255, 255, 0.7),
+        0 14px 26px -4px rgba(0, 0, 0, 0.8),
+        0 4px 8px rgba(0, 0, 0, 0.6);
+      transition: transform 0.28s var(--spring-ease), box-shadow 0.28s ease, filter 0.28s ease;
+    }
+    .sphere-ball::before {
+      content: "";
+      position: absolute;
+      top: 9%;
+      left: 17%;
+      width: 34%;
+      height: 26%;
+      background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0) 75%);
+      border-radius: 9999px;
+      transform: rotate(-28deg);
+      pointer-events: none;
+    }
+    .sphere-ball:hover {
+      transform: translateY(-4px) scale(1.06);
+      filter: brightness(1.12);
+    }
+    .sphere-ball:active {
+      transform: translateY(2px) scale(0.92) !important;
+    }
+
+    .ball-c1 { background: radial-gradient(circle at 35% 32%, #ff6b6b 0%, #dc2626 35%, #991b1b 70%, #450a0a 95%); }
+    .ball-c2 { background: radial-gradient(circle at 35% 32%, #fef08a 0%, #facc15 35%, #ca8a04 70%, #713f12 95%); }
+    .ball-c3 { background: radial-gradient(circle at 35% 32%, #86efac 0%, #22c55e 35%, #15803d 70%, #052e16 95%); }
+    .ball-c4 { background: radial-gradient(circle at 35% 32%, #fdba74 0%, #ea580c 30%, #9a3412 65%, #431407 95%); }
+    .ball-c5 { background: radial-gradient(circle at 35% 32%, #93c5fd 0%, #3b82f6 35%, #1d4ed8 70%, #0f172a 95%); }
+    .ball-c6 { background: radial-gradient(circle at 35% 32%, #fbcfe8 0%, #f43f5e 35%, #be123c 70%, #4c0519 95%); }
+    .ball-c7 { background: radial-gradient(circle at 35% 32%, #64748b 0%, #1e293b 35%, #0f172a 70%, #020617 95%); border: 1.5px solid rgba(252, 211, 77, 0.7); }
+
+    .num-tabular {
+      font-family: 'Outfit', sans-serif;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum";
+    }
+
+    /* Particle Canvas overlay */
+    #fxCanvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 90;
+    }
+
+    /* Active Player Spotlight Shimmer */
+    @keyframes goldPulseBorder {
+      0%, 100% { 
+        border-color: rgba(252, 211, 77, 0.95); 
+        box-shadow: 0 0 28px rgba(252, 211, 77, 0.35), inset 0 1px 0 rgba(255,255,255,0.4); 
+      }
+      50% { 
+        border-color: rgba(252, 211, 77, 0.55); 
+        box-shadow: 0 0 14px rgba(252, 211, 77, 0.18), inset 0 1px 0 rgba(255,255,255,0.2); 
+      }
+    }
+    .striker-active-glow {
+      animation: goldPulseBorder 2.5s infinite ease-in-out;
+    }
+
+    .fade-slide-up {
+      animation: fadeSlideUp 0.36s var(--spring-ease) both;
+    }
+    @keyframes fadeSlideUp {
+      0% { opacity: 0; transform: translateY(14px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Professional Snooker Table Frame & Cloth Styling */
+    .snooker-table-frame {
+      background: radial-gradient(circle at 50% 50%, #2e1a0d 0%, #1a0e06 75%, #0d0703 100%);
+      border: 14px solid #3d210f;
+      border-radius: 26px;
+      box-shadow: 
+        0 24px 60px -12px rgba(0, 0, 0, 0.98),
+        0 0 35px rgba(180, 83, 9, 0.22),
+        inset 0 0 18px rgba(0, 0, 0, 0.9);
+      position: relative;
+    }
+
+    #snookerArenaCanvas {
+      background: #092c18;
+      background-image: 
+        radial-gradient(ellipse at 50% 50%, rgba(20, 85, 48, 0.8) 0%, rgba(9, 44, 24, 0.95) 75%, rgba(4, 24, 12, 1) 100%);
+      border-radius: 12px;
+      box-shadow: inset 0 0 28px rgba(0, 0, 0, 0.85);
+      touch-action: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between selection:bg-brand-gold selection:text-stone-950 relative z-10">
+
+  <!-- Interactive Particles Canvas -->
+  <canvas id="fxCanvas"></canvas>
+  <div class="table-canopy-light"></div>
+
+  <!-- Hidden File Input for Custom Photo Album Upload -->
+  <input type="file" id="avatarFileInput" accept="image/*" class="hidden" onchange="handleAvatarFileSelected(event)">
+
+  <!-- ========================================================================= -->
+  <!-- TOP GLOBAL NAVIGATION & MODE SWITCHER TAB BAR                             -->
+  <!-- ========================================================================= -->
+  <nav class="max-w-5xl mx-auto w-full pt-3 px-3 sm:px-4 z-30">
+    <div class="glass-capsule p-1.5 sm:p-2 rounded-[22px] flex items-center justify-between gap-2 border border-brand-gold/30 shadow-xl">
+      
+      <!-- Brand Logo / Return Home -->
+      <div onclick="switchMainTab('three_chase'); threeGoHome();" class="flex items-center gap-2 px-2 cursor-pointer group shrink-0">
+        <div class="h-8 w-8 rounded-xl bg-gradient-to-tr from-amber-600 via-brand-gold to-yellow-200 p-0.5 shadow-md shadow-amber-500/30 group-hover:scale-105 transition-transform">
+          <div class="h-full w-full bg-stone-950 rounded-[10px] flex items-center justify-center text-sm">
+            🎱
+          </div>
+        </div>
+        <div class="hidden sm:block">
+          <span class="text-xs font-black tracking-widest text-brand-gold uppercase font-mono block leading-none">CUE STUDIO</span>
+          <span class="text-[9px] text-amber-300/80 font-bold">斯諾克旗艦系統</span>
+        </div>
+      </div>
+
+      <!-- Mode Switcher Tabs (4 Modes including Realistic Snooker Simulation) -->
+      <div class="flex items-center gap-1 sm:gap-1.5 bg-black/50 p-1 rounded-2xl border border-brand-gold/20 flex-1 max-w-2xl justify-center text-xs font-bold overflow-x-auto">
+        <button onclick="switchMainTab('three_chase')" id="tabBtn_three_chase" class="tactile-press px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all flex items-center gap-1 whitespace-nowrap bg-gradient-to-r from-amber-400 to-brand-gold text-stone-950 font-black shadow-md">
+          <span>👥</span> <span>三人追分</span>
+        </button>
+        <button onclick="switchMainTab('eight_ball_2p')" id="tabBtn_eight_ball_2p" class="tactile-press px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all text-slate-300 hover:text-white flex items-center gap-1 whitespace-nowrap">
+          <span>🔴</span> <span>中8雙人</span>
+        </button>
+        <button onclick="switchMainTab('snooker_2p')" id="tabBtn_snooker_2p" class="tactile-press px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all text-slate-300 hover:text-white flex items-center gap-1 whitespace-nowrap">
+          <span>🏆</span> <span>斯諾克雙人</span>
+        </button>
+        <button onclick="switchMainTab('arcade')" id="tabBtn_arcade" class="tactile-press px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all text-slate-300 hover:text-white flex items-center gap-1 whitespace-nowrap">
+          <span>🎮</span> <span>斯諾克人機對決</span>
+        </button>
+      </div>
+
+      <!-- Quick Action Buttons -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button onclick="openRoomModal()" class="tactile-press text-xs font-bold px-2.5 sm:px-3 py-2 rounded-xl bg-amber-950/70 border border-brand-gold/40 hover:border-brand-gold text-amber-200 flex items-center gap-1 shadow-md">
+          <span class="relative flex h-2 w-2">
+            <span id="navRoomPing" class="hidden animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span id="navRoomDot" class="relative inline-flex rounded-full h-2 w-2 bg-stone-500"></span>
+          </span>
+          <span class="hidden sm:inline">房間</span>
+        </button>
+        <button onclick="toggleVoice()" id="navVoiceBtn" class="tactile-press text-xs font-bold p-2 rounded-xl bg-stone-900 border border-brand-gold/30 hover:border-brand-gold text-amber-200">
+          <span id="navVoiceIcon">🔊</span>
+        </button>
+      </div>
+
+    </div>
+  </nav>
+
+
+  <!-- ========================================================================= -->
+  <!-- MODE 1: 三人追分模式 (SNOOKER 3P & 14710 CHASE)                          -->
+  <!-- ========================================================================= -->
+  <section id="view_three_chase" class="max-w-5xl mx-auto w-full p-2.5 sm:p-5 my-auto z-20 fade-slide-up">
+    
+    <!-- Home Launchpad for 3P Chase -->
+    <div id="threeChase_home" class="space-y-4">
+      <div class="glass-tile p-6 sm:p-8 relative overflow-hidden border border-brand-gold/30">
+        <div class="inline-flex items-center gap-2 rounded-full border border-brand-gold/50 bg-brand-gold/10 px-3.5 py-1 text-xs font-black text-brand-gold uppercase tracking-widest mb-3">
+          <span class="h-2 w-2 rounded-full bg-brand-gold animate-pulse"></span>
+          MODE 01 · 三人動態追分與 14710 賽制
+        </div>
+        <h2 class="text-2xl sm:text-4xl font-black text-white font-display">
+          三人極限追分 · 兩兩對決結算
+        </h2>
+        <p class="mt-2 text-xs sm:text-sm text-slate-300">
+          三人輪流上桌進球累加單桿分數，進球後鎖定 1v1 互搏；犯規罰分由上家獲益。
+        </p>
+
+        <!-- Player Quick Roster Setup -->
+        <div class="mt-5 pt-4 border-t border-brand-gold/20">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-bold text-amber-200">三位選手名單（點擊頭像自選名將/相冊）：</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            
+            <div class="glass-capsule p-2.5 flex items-center gap-2.5 border border-brand-gold/30">
+              <div onclick="openAvatarModal(0, 'three')" class="relative cursor-pointer shrink-0" title="點擊換頭像/相冊">
+                <img id="threeHomeAvatarImg0" src="avatars/ronnie.jpg" class="h-10 w-10 rounded-full object-cover border border-brand-gold bg-stone-900">
+                <span class="absolute -bottom-1 -right-1 bg-brand-gold text-stone-950 rounded-full h-3.5 w-3.5 flex items-center justify-center text-[7px] font-black">✏️</span>
+              </div>
+              <div class="w-full">
+                <span class="text-[9px] text-amber-400 font-bold block font-mono">1P 選手</span>
+                <input id="threeHomeP0" value="奧蘇利雲" class="w-full bg-transparent text-xs sm:text-sm font-bold text-white focus:outline-none focus:text-brand-gold">
+              </div>
+            </div>
+
+            <div class="glass-capsule p-2.5 flex items-center gap-2.5 border border-sky-400/30">
+              <div onclick="openAvatarModal(1, 'three')" class="relative cursor-pointer shrink-0" title="點擊換頭像/相冊">
+                <img id="threeHomeAvatarImg1" src="avatars/trump.jpg" class="h-10 w-10 rounded-full object-cover border border-sky-400 bg-stone-900">
+                <span class="absolute -bottom-1 -right-1 bg-sky-400 text-stone-950 rounded-full h-3.5 w-3.5 flex items-center justify-center text-[7px] font-black">✏️</span>
+              </div>
+              <div class="w-full">
+                <span class="text-[9px] text-sky-400 font-bold block font-mono">2P 選手</span>
+                <input id="threeHomeP1" value="卓林普" class="w-full bg-transparent text-xs sm:text-sm font-bold text-white focus:outline-none focus:text-brand-gold">
+              </div>
+            </div>
+
+            <div class="glass-capsule p-2.5 flex items-center gap-2.5 border border-emerald-400/30">
+              <div onclick="openAvatarModal(2, 'three')" class="relative cursor-pointer shrink-0" title="點擊換頭像/相冊">
+                <img id="threeHomeAvatarImg2" src="avatars/fu.jpg" class="h-10 w-10 rounded-full object-cover border border-emerald-400 bg-stone-900">
+                <span class="absolute -bottom-1 -right-1 bg-emerald-400 text-stone-950 rounded-full h-3.5 w-3.5 flex items-center justify-center text-[7px] font-black">✏️</span>
+              </div>
+              <div class="w-full">
+                <span class="text-[9px] text-emerald-400 font-bold block font-mono">3P 選手</span>
+                <input id="threeHomeP2" value="傅家俊" class="w-full bg-transparent text-xs sm:text-sm font-bold text-white focus:outline-none focus:text-brand-gold">
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button onclick="launchThreeChase('snooker')" class="tactile-press glass-tile-gold p-4 text-left group">
+            <div class="flex justify-between items-center">
+              <b class="text-base sm:text-lg font-black text-white">斯諾克 3P 動態追分</b>
+              <span class="text-brand-gold text-lg group-hover:translate-x-1 transition-transform">➔</span>
+            </div>
+            <p class="text-xs text-slate-300 mt-1">進球累計單桿，進球後 1v1 互搏</p>
+          </button>
+          <button onclick="launchThreeChase('nine')" class="tactile-press glass-tile p-4 text-left group border-brand-gold/40">
+            <div class="flex justify-between items-center">
+              <b class="text-base sm:text-lg font-black text-amber-300">14710 追分賽制</b>
+              <span class="text-amber-400 text-lg group-hover:translate-x-1 transition-transform">➔</span>
+            </div>
+            <p class="text-xs text-slate-300 mt-1">犯規(-1/+1)、普勝(+4)、小金(+7)、大金(+20)</p>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3P Live Scoring View -->
+    <div id="threeChase_game" class="hidden space-y-3">
+      <!-- 3P HUD Top Bar -->
+      <div class="glass-capsule p-2.5 flex items-center justify-between gap-2 border border-brand-gold/30">
+        <div class="flex items-center gap-2">
+          <button onclick="threeGoHome()" class="tactile-press h-8 w-8 rounded-xl bg-stone-900 border border-brand-gold/30 text-brand-gold flex items-center justify-center font-bold text-xs" title="返回">⌂</button>
+          <div>
+            <span id="threeHudModeName" class="text-xs sm:text-sm font-black text-white font-display">SNOOKER 3P</span>
+            <span id="threeHudDuelState" class="text-[9px] text-amber-300 font-mono block">順位輪流中</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-1 sm:gap-1.5 text-xs">
+          <button onclick="openMatchup()" class="tactile-press px-2 py-1 rounded-xl bg-stone-900 border border-sky-400/40 text-sky-300 font-bold">🎯 PK</button>
+          <button onclick="openHandicap()" class="tactile-press px-2 py-1 rounded-xl bg-stone-900 border border-amber-400/40 text-amber-300 font-bold">⚖️ 讓分</button>
+          <button onclick="toggleCast()" class="tactile-press px-2 py-1 rounded-xl bg-stone-900 border border-purple-400/40 text-purple-300 font-bold">📺 投屏</button>
+          <button onclick="openHistory('three')" class="tactile-press px-2 py-1 rounded-xl bg-stone-900 border border-white/20 text-slate-200 font-bold">📜 紀錄</button>
+          <button onclick="openSettlement()" class="tactile-press px-2.5 py-1 rounded-xl bg-amber-950 border border-brand-gold/50 text-brand-gold font-black">🏁 結算</button>
+        </div>
+      </div>
+
+      <!-- 3-Card Balanced Player Stage -->
+      <section id="threePlayerStage" class="grid grid-cols-3 gap-2 sm:gap-4 items-stretch"></section>
+
+      <!-- Break Streak Momentum Bar -->
+      <div class="glass-tile p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-l-4 border-l-brand-gold">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">🔥</span>
+          <div>
+            <span class="text-[10px] text-slate-400 font-bold block">單桿連續得分 (BREAK)</span>
+            <b id="threeBreakNumber" class="num-tabular text-2xl sm:text-3xl font-black text-brand-gold leading-none">+0 PTS</b>
+          </div>
+        </div>
+        <div id="threeBreakTrail" class="flex items-center gap-1 overflow-x-auto py-0.5 max-w-full">
+          <span class="text-xs text-slate-500 font-mono">未進球</span>
+        </div>
+      </div>
+
+      <!-- 3P Snooker Controls -->
+      <div id="threeSnookerControls" class="glass-tile p-3 sm:p-5 shadow-2xl">
+        <div class="grid grid-cols-7 gap-1.5 sm:gap-3">
+          <button onclick="scoreSnooker(1, '紅球', event)" class="sphere-ball ball-c1 aspect-square flex flex-col items-center justify-center p-1">
+            <span class="num-tabular text-lg sm:text-2xl font-black text-white drop-shadow">1</span>
+            <span class="text-[8px] sm:text-xs font-bold text-white/90">紅</span>
+          </button>
+          <button onclick="scoreSnooker(2, '黃球', event)" class="sphere-ball ball-c2 aspect-square flex flex-col items-center justify-center p-1">
+            <span class="num-tabular text-lg sm:text-2xl font-black text-stone-950 drop-shadow">2</span>
+            <span class="text-[8px] sm:text-xs font-black text-amber-950">黃</span>
+          </button>
+          <button onclick="scoreSnooker(3, '綠球', event)" class="sphere-ball ball-c3 aspect-square flex flex-col items-center justify-center p-1">
+            <span class="num-tabular text-lg sm:text-2xl font-black text-white drop-shadow">3</span>
+            <span class="text-[8px] sm:text-xs font-bold text-emerald-100">綠</span>
+          </button>
+          <button onclick="scoreSnooker(4, '棕球', event)" class="sphere-ball ball-c4 aspect-square flex flex-col items-center justify-center p-1">
+            <span class="num-tabular text-lg sm:text-2xl font-black text-white drop-shadow">4</span>
+            <span class="text-[8px] sm:text-xs font-bold text-amber-100">棕</span>
+          </button>
+          <button onclick="scoreSnooker(5, '藍球', event)" class="sphere-ball ball-c5 aspect-square flex flex-col items-center justify-center p-1">
+            <span class="num-tabular text-lg sm:text-2xl font-black text-white drop-shadow">5</span>
+            <span class="text-[8px] sm:text-xs font-bold text-blue-100">藍</span>
+          </button>
+          <button onclick="scoreSnooker(6, '粉球', event)" class="sphere-ball ball-c6 aspect-square flex flex-col items-center justify-center p-1">
+            <span class="num-tabular text-lg sm:text-2xl font-black text-white drop-shadow">6</span>
+            <span class="text-[8px] sm:text-xs font-bold text-pink-100">粉</span>
+          </button>
+          <button onclick="scoreSnooker(7, '黑球', event)" class="sphere-ball ball-c7 aspect-square flex flex-col items-center justify-center p-1">
+            <span class="num-tabular text-lg sm:text-2xl font-black text-brand-gold drop-shadow">7</span>
+            <span class="text-[8px] sm:text-xs font-black text-brand-gold">黑</span>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-4 gap-2 mt-3.5">
+          <button onclick="endTurn(event)" class="tactile-press col-span-2 rounded-[22px] py-3 bg-gradient-to-r from-amber-500 via-brand-gold to-yellow-400 text-stone-950 font-black text-xs sm:text-sm shadow-lg flex items-center justify-center gap-1">
+            <span>⚡</span> 結束本桿 / 失誤
+          </button>
+          <button onclick="openFoul()" class="tactile-press rounded-[22px] py-3 bg-gradient-to-b from-rose-900 to-stone-950 text-rose-100 border border-rose-500/70 font-bold text-xs flex items-center justify-center gap-1 shadow-lg">
+            <span>🚨</span> 犯規判罰
+          </button>
+          <button onclick="undoThree()" class="tactile-press rounded-[22px] py-3 bg-stone-900 text-slate-200 border border-brand-gold/30 font-bold text-xs flex items-center justify-center gap-1 shadow-lg">
+            <span>↩️</span> 撤銷
+          </button>
+        </div>
+      </div>
+
+      <!-- 3P 14710 Controls -->
+      <div id="threeNineControls" class="hidden glass-tile p-3 sm:p-5 shadow-2xl">
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-2.5">
+          <button onclick="nineAction('foul', event)" class="tactile-press rounded-[22px] p-3 bg-gradient-to-b from-rose-900/90 to-stone-950 border border-rose-600/50 text-center shadow-lg">
+            <span class="text-sm sm:text-base font-black text-rose-100 block">犯規</span>
+            <span class="text-[9px] font-medium text-rose-300 block">自己 -1 / 上家 +1</span>
+          </button>
+          <button onclick="nineAction('normal', event)" class="tactile-press rounded-[22px] p-3 bg-gradient-to-b from-stone-900 to-stone-950 border border-sky-500/50 text-center shadow-lg">
+            <span class="text-sm sm:text-base font-black text-sky-100 block">普勝</span>
+            <span class="text-[9px] font-medium text-sky-200 block">+4 / 上家 -4</span>
+          </button>
+          <button onclick="nineAction('small', event)" class="tactile-press rounded-[22px] p-3 bg-gradient-to-b from-amber-800/90 to-stone-950 border border-amber-400/50 text-center shadow-lg">
+            <span class="text-sm sm:text-base font-black text-amber-100 block">小金</span>
+            <span class="text-[9px] font-bold text-amber-200 block">+7 / 上家 -7</span>
+          </button>
+          <button onclick="nineAction('big', event)" class="tactile-press rounded-[22px] p-3 bg-gradient-to-b from-purple-900/90 to-stone-950 border border-purple-400/50 text-center shadow-lg">
+            <span class="text-sm sm:text-base font-black text-purple-100 block">大金</span>
+            <span class="text-[9px] font-bold text-purple-200 block">+20 / 兩家各 -10</span>
+          </button>
+          <button onclick="nineAction('gold9', event)" class="tactile-press col-span-2 sm:col-span-1 rounded-[22px] p-3 bg-gradient-to-b from-amber-300 via-brand-gold to-yellow-500 border border-yellow-200 text-stone-950 text-center shadow-xl">
+            <span class="text-sm sm:text-base font-black block">黃金 9</span>
+            <span class="text-[9px] font-black text-amber-950 block">+8 / 兩家各 -4</span>
+          </button>
+        </div>
+        <div class="mt-3 flex justify-between items-center text-xs">
+          <button onclick="undoThree()" class="tactile-press text-slate-300 hover:text-white underline font-semibold">↩️ 撤銷</button>
+          <button onclick="manualTurn()" class="tactile-press text-amber-300 hover:text-amber-200 underline font-semibold">手動切換球權</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ========================================================================= -->
+  <!-- MODE 2: 中式8球 雙人對戰記分模式 (CHINESE 8-BALL 2P)                       -->
+  <!-- ========================================================================= -->
+  <section id="view_eight_ball_2p" class="hidden max-w-5xl mx-auto w-full p-2.5 sm:p-5 my-auto z-20 fade-slide-up">
+    
+    <!-- 8-Ball 2P Header HUD -->
+    <div class="glass-capsule p-2.5 sm:p-3 flex items-center justify-between gap-2 border border-brand-gold/30 shadow-xl mb-3">
+      <div class="flex items-center gap-2">
+        <span class="text-xl sm:text-2xl">🔴</span>
+        <div>
+          <h2 class="text-xs sm:text-sm font-black text-white font-display">中式8球 · 雙人對戰記分</h2>
+          <span id="eightBallDuelStatus" class="text-[9px] text-amber-300 font-mono block">出桿權：選手 1</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 text-xs">
+        <button onclick="switchEightBallStriker()" class="tactile-press px-2.5 py-1.5 rounded-xl bg-stone-900 border border-brand-gold/40 text-brand-gold font-bold flex items-center gap-1">
+          <span>🔄</span> 切換出桿
+        </button>
+        <button onclick="openHistory('eight')" class="tactile-press px-2.5 py-1.5 rounded-xl bg-stone-900 border border-white/20 text-slate-200 font-bold">
+          <span>📜</span> 紀錄
+        </button>
+        <button onclick="resetEightBallMatch()" class="tactile-press px-2.5 py-1.5 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-200 font-black">
+          <span>⚙️</span> 新對局
+        </button>
+      </div>
+    </div>
+
+    <!-- 2 Player Cards (Left vs Right) -->
+    <div class="grid grid-cols-2 gap-2.5 sm:gap-5 items-stretch mb-3">
+      
+      <!-- Player 1 Card (Left) -->
+      <div id="eightCard0" class="glass-tile p-3.5 sm:p-6 flex flex-col justify-between border-2 border-brand-gold striker-active-glow relative overflow-hidden">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div onclick="openAvatarModal(0, 'eight')" class="relative cursor-pointer shrink-0" title="點擊切換頭像/相冊">
+              <img id="eightAvatarImg0" src="avatars/ronnie.jpg" class="h-12 w-12 sm:h-20 sm:w-20 rounded-full object-cover border-2 border-brand-gold shadow-lg bg-stone-900">
+              <span class="absolute -bottom-1 -right-1 bg-brand-gold text-stone-950 rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center text-[8px] sm:text-[10px] font-black shadow">✏️</span>
+            </div>
+            <span id="eightBadge0" class="text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-brand-gold text-stone-950 font-black shrink-0">
+              👑 出桿中
+            </span>
+          </div>
+
+          <h3 id="eightName0" class="text-sm sm:text-xl font-black text-white truncate font-display mb-1">
+            奧蘇利雲
+          </h3>
+
+          <div class="my-2 sm:my-3 text-center">
+            <span class="text-[9px] sm:text-xs text-amber-300 font-bold block uppercase tracking-wider">總勝局數 (FRAMES)</span>
+            <b id="eightWins0" class="num-tabular text-4xl sm:text-7xl font-black text-white drop-shadow-md leading-none block my-1">
+              0
+            </b>
+          </div>
+
+          <div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-center text-xs mt-2">
+            <div class="bg-black/50 p-2 rounded-xl border border-brand-gold/20">
+              <span class="text-[9px] sm:text-[10px] text-slate-400 block font-bold">本局剩餘球</span>
+              <div class="flex items-center justify-center gap-1.5 mt-0.5">
+                <button onclick="changeEightRemaining(0, -1)" class="h-5 w-5 rounded bg-stone-800 text-brand-gold font-black text-xs hover:bg-stone-700">-</button>
+                <b id="eightRemaining0" class="text-sm sm:text-lg font-black text-amber-300 num-tabular">7</b>
+                <button onclick="changeEightRemaining(0, 1)" class="h-5 w-5 rounded bg-stone-800 text-brand-gold font-black text-xs hover:bg-stone-700">+</button>
+              </div>
+            </div>
+            <div class="bg-black/50 p-2 rounded-xl border border-brand-gold/20">
+              <span class="text-[9px] sm:text-[10px] text-slate-400 block font-bold">🔥 連炸計數</span>
+              <b id="eightStreak0" class="text-sm sm:text-lg font-black text-amber-400 num-tabular block mt-0.5">0</b>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Player 2 Card (Right) -->
+      <div id="eightCard1" class="glass-tile p-3.5 sm:p-6 flex flex-col justify-between border border-brand-gold/20 opacity-85 relative overflow-hidden">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div onclick="openAvatarModal(1, 'eight')" class="relative cursor-pointer shrink-0" title="點擊切換頭像/相冊">
+              <img id="eightAvatarImg1" src="avatars/trump.jpg" class="h-12 w-12 sm:h-20 sm:w-20 rounded-full object-cover border-2 border-brand-gold/40 shadow-lg bg-stone-900">
+              <span class="absolute -bottom-1 -right-1 bg-brand-gold text-stone-950 rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center text-[8px] sm:text-[10px] font-black shadow">✏️</span>
+            </div>
+            <span id="eightBadge1" class="text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-stone-800 text-slate-300 font-bold shrink-0">
+              等待中
+            </span>
+          </div>
+
+          <h3 id="eightName1" class="text-sm sm:text-xl font-black text-white truncate font-display mb-1">
+            卓林普
+          </h3>
+
+          <div class="my-2 sm:my-3 text-center">
+            <span class="text-[9px] sm:text-xs text-amber-300 font-bold block uppercase tracking-wider">總勝局數 (FRAMES)</span>
+            <b id="eightWins1" class="num-tabular text-4xl sm:text-7xl font-black text-white drop-shadow-md leading-none block my-1">
+              0
+            </b>
+          </div>
+
+          <div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-center text-xs mt-2">
+            <div class="bg-black/50 p-2 rounded-xl border border-brand-gold/20">
+              <span class="text-[9px] sm:text-[10px] text-slate-400 block font-bold">本局剩餘球</span>
+              <div class="flex items-center justify-center gap-1.5 mt-0.5">
+                <button onclick="changeEightRemaining(1, -1)" class="h-5 w-5 rounded bg-stone-800 text-brand-gold font-black text-xs hover:bg-stone-700">-</button>
+                <b id="eightRemaining1" class="text-sm sm:text-lg font-black text-amber-300 num-tabular">7</b>
+                <button onclick="changeEightRemaining(1, 1)" class="h-5 w-5 rounded bg-stone-800 text-brand-gold font-black text-xs hover:bg-stone-700">+</button>
+              </div>
+            </div>
+            <div class="bg-black/50 p-2 rounded-xl border border-brand-gold/20">
+              <span class="text-[9px] sm:text-[10px] text-slate-400 block font-bold">🔥 連炸計數</span>
+              <b id="eightStreak1" class="text-sm sm:text-lg font-black text-amber-400 num-tabular block mt-0.5">0</b>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 8-Ball Bottom Control Actions -->
+    <div class="glass-tile p-3.5 sm:p-5 shadow-2xl border border-brand-gold/30">
+      <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-2.5">
+        
+        <!-- 炸清 (+2勝局) -->
+        <button onclick="eightAction('break_clear', event)" class="tactile-press rounded-[22px] p-3 sm:p-4 bg-gradient-to-b from-amber-400 via-brand-gold to-yellow-500 text-stone-950 font-black text-center shadow-lg">
+          <span class="text-base sm:text-xl block">💣 炸清</span>
+          <span class="text-[10px] sm:text-[11px] font-black block mt-0.5">+2 局 (連炸+1)</span>
+        </button>
+
+        <!-- 接清 (+1勝局) -->
+        <button onclick="eightAction('table_clear', event)" class="tactile-press rounded-[22px] p-3 sm:p-4 bg-gradient-to-b from-stone-800 to-stone-900 border border-brand-gold/50 text-amber-300 font-black text-center shadow-lg">
+          <span class="text-base sm:text-xl block">🧹 接清</span>
+          <span class="text-[10px] sm:text-[11px] font-bold block mt-0.5">+1 局</span>
+        </button>
+
+        <!-- 普勝 (+1勝局) -->
+        <button onclick="eightAction('normal_win', event)" class="tactile-press rounded-[22px] p-3 sm:p-4 bg-gradient-to-b from-stone-800 to-stone-900 border border-white/20 text-white font-black text-center shadow-lg">
+          <span class="text-base sm:text-xl block">🏆 普勝</span>
+          <span class="text-[10px] sm:text-[11px] font-bold text-slate-300 block mt-0.5">+1 局</span>
+        </button>
+
+        <!-- 犯規 -->
+        <button onclick="eightAction('foul', event)" class="tactile-press rounded-[22px] p-3 sm:p-4 bg-gradient-to-b from-rose-900/90 to-stone-950 border border-rose-600/60 text-rose-100 font-black text-center shadow-lg">
+          <span class="text-base sm:text-xl block">🚨 犯規</span>
+          <span class="text-[10px] sm:text-[11px] text-rose-300 block mt-0.5">換對手出桿</span>
+        </button>
+
+        <!-- 撤銷 -->
+        <button onclick="undoEight()" class="tactile-press rounded-[22px] p-3 sm:p-4 bg-stone-900 border border-brand-gold/30 text-slate-200 font-bold text-center shadow-md">
+          <span class="text-base sm:text-xl block">↩️ 撤銷</span>
+          <span class="text-[10px] sm:text-[11px] text-slate-400 block mt-0.5">復原上步</span>
+        </button>
+
+        <!-- 重置本局 -->
+        <button onclick="resetEightBallRack()" class="tactile-press rounded-[22px] p-3 sm:p-4 bg-stone-900 border border-amber-500/40 text-amber-300 font-bold text-center shadow-md">
+          <span class="text-base sm:text-xl block">🔄 本局重置</span>
+          <span class="text-[10px] sm:text-[11px] text-amber-200/80 block mt-0.5">球數回歸 7</span>
+        </button>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ========================================================================= -->
+  <!-- MODE 3: 斯諾克 雙人對戰記分模式 (SNOOKER 2P)                               -->
+  <!-- ========================================================================= -->
+  <section id="view_snooker_2p" class="hidden max-w-5xl mx-auto w-full p-2.5 sm:p-5 my-auto z-20 fade-slide-up">
+    
+    <!-- Snooker 2P Top HUD -->
+    <div class="glass-capsule p-2.5 sm:p-3 flex items-center justify-between gap-2 border border-brand-gold/30 shadow-xl mb-3">
+      <div class="flex items-center gap-2">
+        <span class="text-xl sm:text-2xl">🏆</span>
+        <div>
+          <h2 class="text-xs sm:text-sm font-black text-white font-display">斯諾克 · 雙人正規記分</h2>
+          <span id="snooker2pDuelStatus" class="text-[9px] text-amber-300 font-mono block">出桿權：選手 1</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 text-xs">
+        <button onclick="openHistory('snooker2p')" class="tactile-press px-2.5 py-1.5 rounded-xl bg-stone-900 border border-white/20 text-slate-200 font-bold">
+          <span>📜</span> 紀錄
+        </button>
+        <button onclick="resetSnooker2pFrame()" class="tactile-press px-2.5 py-1.5 rounded-xl bg-amber-950/80 border border-brand-gold/40 text-brand-gold font-bold">
+          <span>🔄</span> 重置本局
+        </button>
+        <button onclick="resetSnooker2pMatch()" class="tactile-press px-2.5 py-1.5 rounded-xl bg-rose-950/80 border border-rose-500/40 text-rose-200 font-black">
+          <span>⚙️</span> 新對局
+        </button>
+      </div>
+    </div>
+
+    <!-- 2 Player Cards (Left vs Right) -->
+    <div class="grid grid-cols-2 gap-2.5 sm:gap-5 items-stretch mb-3">
+      
+      <!-- Player 1 Card (Left) -->
+      <div id="snooker2pCard0" class="glass-tile p-3.5 sm:p-6 flex flex-col justify-between border-2 border-brand-gold striker-active-glow relative overflow-hidden">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div onclick="openAvatarModal(0, 'snooker2p')" class="relative cursor-pointer shrink-0" title="點擊切換頭像/相冊">
+              <img id="snooker2pAvatarImg0" src="avatars/ronnie.jpg" class="h-12 w-12 sm:h-20 sm:w-20 rounded-full object-cover border-2 border-brand-gold shadow-lg bg-stone-900">
+              <span class="absolute -bottom-1 -right-1 bg-brand-gold text-stone-950 rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center text-[8px] sm:text-[10px] font-black shadow">✏️</span>
+            </div>
+            <span id="snooker2pBadge0" class="text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-brand-gold text-stone-950 font-black shrink-0">
+              👑 出桿中
+            </span>
+          </div>
+
+          <h3 id="snooker2pName0" class="text-sm sm:text-xl font-black text-white truncate font-display mb-1">
+            奧蘇利雲
+          </h3>
+
+          <div class="my-2 sm:my-3 text-center">
+            <span class="text-[9px] sm:text-xs text-amber-300 font-bold block uppercase tracking-wider">全局總得分 (TOTAL)</span>
+            <b id="snooker2pTotal0" class="num-tabular text-4xl sm:text-7xl font-black text-white drop-shadow-md leading-none block my-1">
+              0
+            </b>
+          </div>
+
+          <div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-center text-xs mt-2">
+            <div class="bg-black/50 p-2 rounded-xl border border-brand-gold/20">
+              <span class="text-[9px] sm:text-[10px] text-slate-400 block font-bold">當前單桿</span>
+              <b id="snooker2pBreak0" class="text-sm sm:text-lg font-black text-brand-gold num-tabular block mt-0.5">+0</b>
+            </div>
+            <div class="bg-black/50 p-2 rounded-xl border border-brand-gold/20">
+              <span class="text-[9px] sm:text-[10px] text-slate-400 block font-bold">最高單桿</span>
+              <b id="snooker2pHigh0" class="text-sm sm:text-lg font-black text-amber-400 num-tabular block mt-0.5">0</b>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Player 2 Card (Right) -->
+      <div id="snooker2pCard1" class="glass-tile p-3.5 sm:p-6 flex flex-col justify-between border border-brand-gold/20 opacity-85 relative overflow-hidden">
+        <div>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <div onclick="openAvatarModal(1, 'snooker2p')\" class="relative cursor-pointer shrink-0" title="點擊切換頭像/相冊">
+              <img id="snooker2pAvatarImg1" src="avatars/trump.jpg" class="h-12 w-12 sm:h-20 sm:w-20 rounded-full object-cover border-2 border-brand-gold/40 shadow-lg bg-stone-900">
+              <span class="absolute -bottom-1 -right-1 bg-brand-gold text-stone-950 rounded-full h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center text-[8px] sm:text-[10px] font-black shadow">✏️</span>
+            </div>
+            <span id="snooker2pBadge1" class="text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-stone-800 text-slate-300 font-bold shrink-0">
+              等待中
+            </span>
+          </div>
+
+          <h3 id="snooker2pName1" class="text-sm sm:text-xl font-black text-white truncate font-display mb-1">
+            卓林普
+          </h3>
+
+          <div class="my-2 sm:my-3 text-center">
+            <span class="text-[9px] sm:text-xs text-amber-300 font-bold block uppercase tracking-wider">全局總得分 (TOTAL)</span>
+            <b id="snooker2pTotal1" class="num-tabular text-4xl sm:text-7xl font-black text-white drop-shadow-md leading-none block my-1">
+              0
+            </b>
+          </div>
+
+          <div class="grid grid-cols-2 gap-1.5 sm:gap-2 text-center text-xs mt-2">
+            <div class="bg-black/50 p-2 rounded-xl border border-brand-gold/20">
+              <span class="text-[9px] sm:text-[10px] text-slate-400 block font-bold">當前單桿</span>
+              <b id="snooker2pBreak1" class="text-sm sm:text-lg font-black text-brand-gold num-tabular block mt-0.5">+0</b>
+            </div>
+            <div class="bg-black/50 p-2 rounded-xl border border-brand-gold/20">
+              <span class="text-[9px] sm:text-[10px] text-slate-400 block font-bold">最高單桿</span>
+              <b id="snooker2pHigh1" class="text-sm sm:text-lg font-black text-amber-400 num-tabular block mt-0.5">0</b>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Snooker 2P Scoring Control Keypad -->
+    <div class="glass-tile p-3.5 sm:p-5 shadow-2xl border border-brand-gold/30">
+      
+      <!-- 7 Billiard Spheres (3D Shaded Physics Buttons) -->
+      <div class="grid grid-cols-7 gap-1.5 sm:gap-3.5">
+        <button onclick="scoreSnooker2p(1, '紅球', event)" class="sphere-ball ball-c1 aspect-square flex flex-col items-center justify-center p-1">
+          <span class="num-tabular text-xl sm:text-3xl font-black leading-none drop-shadow text-white">1</span>
+          <span class="text-[9px] sm:text-xs font-bold text-white/90 mt-0.5">紅</span>
+        </button>
+        <button onclick="scoreSnooker2p(2, '黃球', event)" class="sphere-ball ball-c2 aspect-square flex flex-col items-center justify-center p-1">
+          <span class="num-tabular text-xl sm:text-3xl font-black leading-none drop-shadow text-stone-950">2</span>
+          <span class="text-[9px] sm:text-xs font-black text-amber-950 mt-0.5">黃</span>
+        </button>
+        <button onclick="scoreSnooker2p(3, '綠球', event)" class="sphere-ball ball-c3 aspect-square flex flex-col items-center justify-center p-1">
+          <span class="num-tabular text-xl sm:text-3xl font-black leading-none drop-shadow text-white">3</span>
+          <span class="text-[9px] sm:text-xs font-bold text-emerald-100 mt-0.5">綠</span>
+        </button>
+        <button onclick="scoreSnooker2p(4, '棕球', event)" class="sphere-ball ball-c4 aspect-square flex flex-col items-center justify-center p-1">
+          <span class="num-tabular text-xl sm:text-3xl font-black leading-none drop-shadow text-white">4</span>
+          <span class="text-[9px] sm:text-xs font-bold text-amber-100 mt-0.5">棕</span>
+        </button>
+        <button onclick="scoreSnooker2p(5, '藍球', event)" class="sphere-ball ball-c5 aspect-square flex flex-col items-center justify-center p-1">
+          <span class="num-tabular text-xl sm:text-3xl font-black leading-none drop-shadow text-white">5</span>
+          <span class="text-[9px] sm:text-xs font-bold text-blue-100 mt-0.5">藍</span>
+        </button>
+        <button onclick="scoreSnooker2p(6, '粉球', event)" class="sphere-ball ball-c6 aspect-square flex flex-col items-center justify-center p-1">
+          <span class="num-tabular text-xl sm:text-3xl font-black leading-none drop-shadow text-white">6</span>
+          <span class="text-[9px] sm:text-xs font-bold text-pink-100 mt-0.5">粉</span>
+        </button>
+        <button onclick="scoreSnooker2p(7, '黑球', event)" class="sphere-ball ball-c7 aspect-square flex flex-col items-center justify-center p-1">
+          <span class="num-tabular text-xl sm:text-3xl font-black leading-none drop-shadow text-brand-gold">7</span>
+          <span class="text-[9px] sm:text-xs font-black text-brand-gold mt-0.5">黑</span>
+        </button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="grid grid-cols-3 sm:grid-cols-4 gap-2 sm:gap-3 mt-4">
+        <button onclick="endSnooker2pBreak(event)" class="tactile-press col-span-2 sm:col-span-2 rounded-[22px] py-3.5 bg-gradient-to-r from-amber-500 via-brand-gold to-yellow-400 text-stone-950 font-black text-xs sm:text-base shadow-lg flex items-center justify-center gap-1.5">
+          <span>⚡</span> 結束本桿 (結算入總分)
+        </button>
+
+        <button onclick="openSnooker2pFoulModal()" class="tactile-press rounded-[22px] py-3.5 bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-600/70 text-rose-100 font-bold text-xs sm:text-sm flex items-center justify-center gap-1 shadow-lg">
+          <span>🚨</span> 犯規判罰
+        </button>
+
+        <button onclick="undoSnooker2p()" class="tactile-press rounded-[22px] py-3.5 bg-stone-900 text-slate-200 border border-brand-gold/30 font-bold text-xs sm:text-sm hover:bg-stone-800 flex items-center justify-center gap-1 shadow-lg">
+          <span>↩️</span> 撤銷
+        </button>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ========================================================================= -->
+  <!-- MODE 4: 斯諾克 人機對決寫實競技模擬器 (REALISTIC SNOOKER ARCADE & PVE)     -->
+  <!-- ========================================================================= -->
+  <section id="view_arcade" class="hidden max-w-6xl mx-auto w-full p-2 sm:p-4 my-auto z-20 fade-slide-up">
+    
+    <!-- 1. Top HUD: Players, Scores, Remaining Max Points, Break, Striker -->
+    <div class="glass-capsule p-3 sm:p-4 border border-brand-gold/30 shadow-2xl mb-3">
+      <div class="grid grid-cols-12 gap-2 items-center">
+        
+        <!-- Left: Player 1 (Human) -->
+        <div id="snookerSimPlayerCard0" class="col-span-4 sm:col-span-4 p-2 sm:p-2.5 rounded-2xl border-2 border-brand-gold striker-active-glow bg-black/40 flex items-center gap-2 sm:gap-3 transition-all">
+          <img id="snookerSimAvatar0" src="avatars/ronnie.jpg" class="h-10 w-10 sm:h-13 sm:w-13 rounded-full object-cover border-2 border-brand-gold bg-stone-900 shrink-0">
+          <div class="min-w-0 flex-1">
+            <div class="flex items-center gap-1.5">
+              <b id="snookerSimName0" class="text-xs sm:text-base font-black text-white truncate">挑戰玩家</b>
+              <span id="snookerSimStrikerBadge0" class="text-[8px] sm:text-[10px] px-1.5 py-0.5 rounded-full bg-brand-gold text-stone-950 font-black shrink-0">👑 擊球中</span>
+            </div>
+            <div class="flex items-baseline gap-2 mt-0.5">
+              <span class="text-[10px] text-amber-300 font-bold">局分</span>
+              <b id="snookerSimScore0" class="num-tabular text-xl sm:text-3xl font-black text-white leading-none">0</b>
+            </div>
+          </div>
+        </div>
+
+        <!-- Center: Match Information, Remaining Max Points, On-Ball & Break -->
+        <div class="col-span-4 sm:col-span-4 text-center px-1">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-stone-900 border border-brand-gold/30 text-[10px] sm:text-xs font-mono text-amber-300 mb-1">
+            <span>剩餘最高分：</span>
+            <b id="snookerSimMaxPoints" class="text-brand-gold font-black num-tabular">147</b>
+          </div>
+          <div class="flex items-center justify-center gap-2 sm:gap-3">
+            <div class="text-xs">
+              <span class="text-[9px] text-slate-400 block font-bold">單桿得分</span>
+              <b id="snookerSimBreakScore" class="num-tabular text-lg sm:text-2xl font-black text-brand-gold">+0</b>
+            </div>
+            <div class="h-6 w-px bg-white/15"></div>
+            <div class="text-xs">
+              <span class="text-[9px] text-slate-400 block font-bold">目標球</span>
+              <b id="snookerSimTargetBall" class="text-xs sm:text-sm font-black text-rose-400">🔴 紅球 (1分)</b>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Player 2 (AI Master) -->
+        <div id="snookerSimPlayerCard1" class="col-span-4 sm:col-span-4 p-2 sm:p-2.5 rounded-2xl border border-white/10 bg-black/40 flex items-center justify-end gap-2 sm:gap-3 transition-all opacity-80">
+          <div class="min-w-0 flex-1 text-right">
+            <div class="flex items-center justify-end gap-1.5">
+              <span id="snookerSimStrikerBadge1" class="hidden text-[8px] sm:text-[10px] px-1.5 py-0.5 rounded-full bg-brand-gold text-stone-950 font-black shrink-0">👑 擊球中</span>
+              <b id="snookerSimName1" class="text-xs sm:text-base font-black text-white truncate">卓林普 (AI)</b>
+            </div>
+            <div class="flex items-baseline justify-end gap-2 mt-0.5">
+              <b id="snookerSimScore1" class="num-tabular text-xl sm:text-3xl font-black text-sky-300 leading-none">0</b>
+              <span class="text-[10px] text-sky-300 font-bold">局分</span>
+            </div>
+          </div>
+          <img id="snookerSimAvatar1" src="avatars/trump.jpg" class="h-10 w-10 sm:h-13 sm:w-13 rounded-full object-cover border-2 border-sky-400 bg-stone-900 shrink-0">
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 2. Main Game Arena: 6:11 Snooker Table (Top-Down) + Right Control Deck -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+      
+      <!-- Left / Center: 6:11 Orthographic Realistic Snooker Table Canvas -->
+      <div class="lg:col-span-9 glass-tile p-2.5 sm:p-3.5 border-brand-gold/30 overflow-hidden flex flex-col items-center">
+        
+        <div class="w-full flex items-center justify-between text-[11px] font-mono text-amber-200/90 mb-1.5 px-1">
+          <span id="snookerSimTurnText" class="flex items-center gap-1.5">
+            <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>輪到您出桿：滑鼠/觸控拖動瞄準線，或使用右側控制面板</span>
+          </span>
+          <div class="flex items-center gap-2">
+            <span id="snookerSimPhysicsState" class="text-[10px] text-slate-400">球體靜止</span>
+            <button onclick="restartSnookerMatch()" class="px-2 py-0.5 rounded-lg bg-stone-900 border border-brand-gold/40 text-brand-gold text-[10px] font-bold hover:bg-stone-800">
+              🔄 重新開球
+            </button>
+          </div>
+        </div>
+
+        <!-- 6:11 Ratio Snooker Canvas Container -->
+        <div class="snooker-table-frame w-full max-w-[880px] select-none">
+          <canvas id="snookerArenaCanvas" width="880" height="480" class="w-full block cursor-crosshair"></canvas>
+        </div>
+
+        <!-- Cue Ball Placement Hint (When in hand) -->
+        <div id="snookerInHandTip" class="hidden mt-2 text-xs font-bold text-amber-300 bg-amber-950/80 px-4 py-1.5 rounded-full border border-amber-400/50 animate-pulse">
+          ✋ 白球在手：請在左側 D 區內點擊放置白球
+        </div>
+      </div>
+
+      <!-- Right: Compact Tactical Control Panel (Angle, Power, Spin, Shoot) -->
+      <div class="lg:col-span-3 space-y-3">
+        
+        <!-- Controls Card -->
+        <div class="glass-tile p-3.5 sm:p-4 border-brand-gold/30 space-y-3.5">
+          <div class="border-b border-brand-gold/20 pb-2 flex items-center justify-between">
+            <span class="text-xs font-black text-brand-gold font-display uppercase tracking-wider flex items-center gap-1.5">
+              <span>⚙️</span> 擊球控制台
+            </span>
+            <span id="snookerCueSpinBadge" class="text-[9px] px-2 py-0.5 rounded-full bg-stone-900 text-amber-300 font-mono border border-brand-gold/30">無塞 (中桿)</span>
+          </div>
+
+          <!-- Aim Angle Slider & Fine Adjustment -->
+          <div>
+            <div class="flex justify-between items-center text-xs font-bold text-slate-300 mb-1">
+              <span>📐 瞄準角度</span>
+              <span id="snookerAimDegText" class="text-brand-gold font-mono text-xs">0.0°</span>
+            </div>
+            <input id="snookerAngleSlider" type="range" min="0" max="360" step="0.5" value="0" oninput="handleAngleSlider(this.value)" class="w-full accent-amber-400 cursor-pointer">
+            <div class="grid grid-cols-2 gap-1.5 mt-1">
+              <button onclick="adjustAimAngle(-0.5)" class="tactile-press py-1 bg-stone-900 border border-white/15 rounded-lg text-xs font-mono font-bold text-slate-200">◀ 微調 -0.5°</button>
+              <button onclick="adjustAimAngle(0.5)" class="tactile-press py-1 bg-stone-900 border border-white/15 rounded-lg text-xs font-mono font-bold text-slate-200">微調 +0.5° ▶</button>
+            </div>
+          </div>
+
+          <!-- Power Slider 0-100 -->
+          <div>
+            <div class="flex justify-between items-center text-xs font-bold text-amber-300 mb-1">
+              <span>⚡ 出桿力度 (0-100)</span>
+              <b id="snookerPowerText" class="text-brand-gold font-mono text-sm">60%</b>
+            </div>
+            <input id="snookerPowerSlider" type="range" min="5" max="100" step="1" value="60" oninput="handlePowerSlider(this.value)" class="w-full accent-amber-400 cursor-pointer">
+            <div class="flex justify-between text-[9px] text-slate-500 font-mono px-0.5">
+              <span>輕推 (5)</span>
+              <span>中力 (50)</span>
+              <span>強桿 (100)</span>
+            </div>
+          </div>
+
+          <!-- Spin Selection (Left / Center / Right / Top / Screw) -->
+          <div>
+            <span class="text-xs font-bold text-slate-300 block mb-1.5">🎱 選擇加塞與桿法</span>
+            <div class="grid grid-cols-3 gap-1 text-[11px] font-bold">
+              <button onclick="setSpin('top')" id="spinBtn_top" class="tactile-press py-1.5 rounded-lg bg-stone-900 border border-white/10 text-slate-300 hover:border-brand-gold">高桿 (跟進)</button>
+              <button onclick="setSpin('center')" id="spinBtn_center" class="tactile-press py-1.5 rounded-lg bg-brand-gold text-stone-950 font-black shadow">無塞 (中桿)</button>
+              <button onclick="setSpin('screw')" id="spinBtn_screw" class="tactile-press py-1.5 rounded-lg bg-stone-900 border border-white/10 text-slate-300 hover:border-brand-gold">低桿 (回拉)</button>
+              <button onclick="setSpin('left')" id="spinBtn_left" class="tactile-press py-1.5 rounded-lg bg-stone-900 border border-white/10 text-slate-300 hover:border-brand-gold">左塞 (反彈向左)</button>
+              <button onclick="setSpin('center')" class="tactile-press py-1.5 rounded-lg bg-stone-900 border border-white/10 text-slate-400">重置</button>
+              <button onclick="setSpin('right')" id="spinBtn_right" class="tactile-press py-1.5 rounded-lg bg-stone-900 border border-white/10 text-slate-300 hover:border-brand-gold">右塞 (反彈向右)</button>
+            </div>
+          </div>
+
+          <!-- AI Opponent Difficulty Selector -->
+          <div>
+            <div class="flex justify-between items-center text-xs font-bold text-slate-300 mb-1">
+              <span>🤖 名將 AI 難度</span>
+            </div>
+            <select id="snookerAiDiff" onchange="updateAiDiff()" class="w-full bg-stone-900 border border-brand-gold/30 text-amber-300 text-xs font-bold rounded-xl p-2 focus:outline-none">
+              <option value="easy">新手陪練 (偶有失誤)</option>
+              <option value="master" selected>大師 AI (準度高，防守強)</option>
+              <option value="legend">奧蘇利雲 (傳奇AI，精準清台)</option>
+            </select>
+          </div>
+
+          <!-- Big Shoot Button -->
+          <button onclick="executeSnookerShot()" id="snookerShootBtn" class="tactile-press w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 via-brand-gold to-yellow-400 text-stone-950 font-black text-base shadow-xl shadow-amber-950/70 flex items-center justify-center gap-2">
+            <span>🎯</span> <span>擊球出桿 (SHOOT)</span>
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- 3. Bottom Information Feed: Live Commentary, Shot Logs, Referee Decisions -->
+    <div class="glass-tile p-3 sm:p-4 mt-3 border-brand-gold/30">
+      <div class="flex items-center justify-between border-b border-brand-gold/20 pb-2 mb-2">
+        <span class="text-xs font-black text-amber-300 font-display flex items-center gap-1.5">
+          <span>🎙️</span> 賽事直播解說與裁判判罰記錄
+        </span>
+        <span class="text-[9px] text-slate-400 font-mono">WORLD SNOOKER OFFICIAL RULES</span>
+      </div>
+      <div id="snookerLiveLog" class="h-20 sm:h-24 overflow-y-auto space-y-1 text-xs font-mono text-slate-200 pr-1">
+        <div class="text-slate-400">比賽開始。紅球 15 顆已就位，6 顆彩球各居其位。當前球權：挑戰玩家。請開球！</div>
+      </div>
+    </div>
+
+  </section>
+
+
+  <!-- ========================================================================= -->
+  <!-- MODAL DIALOG CONTAINER                                                    -->
+  <!-- ========================================================================= -->
+  <div id="modal" class="hidden opacity-0 transition-opacity duration-300 fixed inset-0 z-50 items-center justify-center p-4 bg-black/85 backdrop-blur-2xl">
+    <div id="modalBox" class="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-[22px] border border-brand-gold/40 bg-gradient-to-b from-[#1c1810] via-[#120e09] to-[#070503] p-6 sm:p-7 shadow-2xl shadow-amber-950/80 text-slate-100 transform scale-95 translate-y-4 opacity-0 transition-all duration-300 ease-out"></div>
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- FULLSCREEN CAST / BROADCAST SCOREBOARD OVERLAY                            -->
+  <!-- ========================================================================= -->
+  <div id="cast" class="hidden opacity-0 scale-98 transition-all duration-300 fixed inset-0 z-50 bg-[#050402] p-6 sm:p-12 flex flex-col justify-between">
+    <div class="flex items-center justify-between border-b border-brand-gold/25 pb-6">
+      <div>
+        <div class="flex items-center gap-3">
+          <span class="text-3xl">🎱</span>
+          <h2 class="text-brand-gold text-2xl sm:text-4xl font-black font-display tracking-wide">
+            CUE STUDIO · 實時大螢幕投屏
+          </h2>
+        </div>
+        <p id="castStatus" class="text-amber-300 font-bold text-sm sm:text-lg mt-1 font-mono"></p>
+      </div>
+      <button onclick="toggleCast()" class="tactile-press rounded-[22px] bg-stone-900 hover:bg-stone-800 px-6 py-3 text-sm font-black border border-brand-gold/30 text-white shadow-lg">
+        ✕ 退出投屏
+      </button>
+    </div>
+    
+    <div id="castGrid" class="grid grid-cols-3 gap-4 sm:gap-8 my-auto items-center"></div>
+
+    <div class="text-center text-xs text-slate-400 font-mono tracking-widest">
+      CUE STUDIO TOURNAMENT BROADCAST · BLACK & GOLD ROYALE
+    </div>
+  </div>
+
+
+  <!-- ========================================================================= -->
+  <!-- TOAST NOTIFICATION                                                        -->
+  <!-- ========================================================================= -->
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 translate-y-6 opacity-0 transition-all duration-300 z-[60] rounded-full bg-gradient-to-r from-yellow-200 via-brand-gold to-amber-400 px-6 py-2.5 text-xs sm:text-sm font-black text-stone-950 shadow-2xl border border-amber-200 pointer-events-none"></div>
+
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT LOGIC ENGINE: MODES + PHOTO UPLOAD + OFFICIAL SNOOKER PHYSICS   -->
+  <!-- ========================================================================= -->
+  <script>
+    const $ = id => document.getElementById(id);
+    let voice = true, toastTimer;
+
+    /* ------------------------------------------------------------- */
+    /* Snooker & Pool Legends Avatar Database (Pure Chinese Names)   */
+    /* ------------------------------------------------------------- */
+    const SNOOKER_LEGENDS = [
+      { id: 'ronnie', name: '奧蘇利雲', nick: '火箭', country: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英格蘭', titles: '7屆世界冠軍 / 史上最多 147', img: 'avatars/ronnie.jpg' },
+      { id: 'trump', name: '卓林普', nick: '準神', country: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英格蘭', titles: '世界冠軍 / 大滿貫得主', img: 'avatars/trump.jpg' },
+      { id: 'ding', name: '丁俊暉', nick: '中國龍', country: '🇨🇳 中國', titles: '14座排名賽冠軍 / 亞洲第一人', img: 'avatars/ding.jpg' },
+      { id: 'fu', name: '傅家俊', nick: '神奇小子', country: '🇭🇰 中國香港', titles: '3座排名賽冠軍 / 滿分 147 先生', img: 'avatars/fu.jpg' },
+      { id: 'selby', name: '塞爾比', nick: '萊斯特小丑', country: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英格蘭', titles: '4屆世界冠軍 / 逆轉之王', img: 'avatars/selby.jpg' },
+      { id: 'higgins', name: '希堅斯', nick: '巫師', country: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 蘇格蘭', titles: '4屆世界冠軍 / 戰術大師', img: 'avatars/higgins.jpg' },
+      { id: 'hendry', name: '亨特利', nick: '檯球皇帝', country: '🏴󠁧󠁢󠁳󠁣󠁴󠁿 蘇格蘭', titles: '7屆世界冠軍 / 90年代霸主', img: 'avatars/hendry.jpg' },
+      { id: 'robertson', name: '羅伯遜', nick: '墨爾本機器', country: '🇦🇺 澳洲', titles: '世界冠軍 / 單季百桿破百', img: 'avatars/robertson.jpg' },
+      { id: 'williams', name: '威廉斯', nick: '金左手', country: '🏴󠁧󠁢󠁷󠁬󠁳󠁿 威爾斯', titles: '3屆世界冠軍 / 準度教科書', img: 'avatars/williams.jpg' },
+      { id: 'wilson', name: '威爾遜', nick: '勇士', country: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英格蘭', titles: '2024世界冠軍 / 頂級重砲', img: 'avatars/wilson.jpg' },
+      { id: 'murphy', name: '梅菲', nick: '魔術師', country: '🏴󠁧󠁢󠁥󠁮󠁧󠁿 英格蘭', titles: '世界冠軍 / 大滿貫選手', img: 'avatars/murphy.jpg' },
+      { id: 'zhao', name: '趙心童', nick: '旋風', country: '🇨🇳 中國', titles: '英錦賽冠軍 / 德國大師賽冠軍', img: 'avatars/zhao.jpg' }
+    ];
+
+    /* ------------------------------------------------------------- */
+    /* Comprehensive App State                                       */
+    /* ------------------------------------------------------------- */
+    let currentMainTab = 'three_chase'; // 'three_chase' | 'eight_ball_2p' | 'snooker_2p' | 'arcade'
+
+    // 1. Three Chase State
+    let S = {
+      mode: 'snooker',
+      names: ['奧蘇利雲', '卓林普', '傅家俊'],
+      avatars: [SNOOKER_LEGENDS[0].img, SNOOKER_LEGENDS[1].img, SNOOKER_LEGENDS[3].img],
+      scores: [0, 0, 0],
+      matrix: [[0,0,0], [0,0,0], [0,0,0]],
+      handicap: [[0,0,0], [0,0,0], [0,0,0]],
+      active: 0,
+      upstream: 2,
+      combat: false,
+      scorer: null,
+      combatMisses: 0,
+      break: 0,
+      turnScored: false,
+      breakBalls: [],
+      history: [],
+      logs: []
+    };
+
+    // 2. Chinese 8-Ball 2P State
+    let S_8BALL = {
+      names: ['奧蘇利雲', '卓林普'],
+      avatars: [SNOOKER_LEGENDS[0].img, SNOOKER_LEGENDS[1].img],
+      active: 0,
+      wins: [0, 0],
+      remainingBalls: [7, 7],
+      streaks: [0, 0],
+      history: [],
+      logs: []
+    };
+
+    // 3. Snooker 2P State
+    let S_SNOOKER2P = {
+      names: ['奧蘇利雲', '卓林普'],
+      avatars: [SNOOKER_LEGENDS[0].img, SNOOKER_LEGENDS[1].img],
+      active: 0,
+      totalScores: [0, 0],
+      currentBreak: 0,
+      highestBreak: [0, 0],
+      breakBalls: [],
+      history: [],
+      logs: []
+    };
+
+    /* ------------------------------------------------------------- */
+    /* Tab Switcher Controller                                       */
+    /* ------------------------------------------------------------- */
+    function switchMainTab(tab) {
+      currentMainTab = tab;
+      
+      ['three_chase', 'eight_ball_2p', 'snooker_2p', 'arcade'].forEach(t => {
+        const btn = $('tabBtn_' + t);
+        const view = $('view_' + t);
+        const isActive = t === tab;
+
+        if (btn) {
+          btn.className = isActive 
+            ? 'tactile-press px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all flex items-center gap-1 whitespace-nowrap bg-gradient-to-r from-amber-400 via-brand-gold to-yellow-400 text-stone-950 font-black shadow-md'
+            : 'tactile-press px-2.5 sm:px-3.5 py-1.5 sm:py-2 rounded-xl transition-all text-slate-300 hover:text-white flex items-center gap-1 whitespace-nowrap';
+        }
+
+        if (view) {
+          view.classList.toggle('hidden', !isActive);
+          if (isActive) {
+            view.classList.remove('fade-slide-up');
+            view.offsetHeight; // trigger reflow
+            view.classList.add('fade-slide-up');
+          }
+        }
+      });
+
+      if (tab === 'three_chase') renderThree();
+      else if (tab === 'eight_ball_2p') renderEightBall();
+      else if (tab === 'snooker_2p') renderSnooker2p();
+      else if (tab === 'arcade') SnookerPhysicsEngine.init();
+    }
+
+    /* ------------------------------------------------------------- */
+    /* Web Audio Synthesizer & Particle Engine                       */
+    /* ------------------------------------------------------------- */
+    let audioCtx = null;
+    function getAudioCtx() {
+      if (!audioCtx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) audioCtx = new AudioCtx();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      return audioCtx;
+    }
+
+    function playPotSound(points = 1) {
+      try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const baseFreq = 160 + points * 35;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(baseFreq, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.12);
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } catch (e) {}
+    }
+
+    function playBallClackSound(vol = 0.25) {
+      try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(850, now);
+        osc.frequency.exponentialRampToValueAtTime(120, now + 0.04);
+        gain.gain.setValueAtTime(Math.min(vol, 0.4), now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      } catch (e) {}
+    }
+
+    function playCushionSound() {
+      try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(140, now);
+        osc.frequency.exponentialRampToValueAtTime(50, now + 0.06);
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.07);
+      } catch (e) {}
+    }
+
+    function playFoulSound() {
+      try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator(), gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, now);
+        osc.frequency.linearRampToValueAtTime(110, now + 0.28);
+        gain.gain.setValueAtTime(0.25, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.32);
+      } catch (e) {}
+    }
+
+    function playWinSound(kind = 'normal') {
+      try {
+        const ctx = getAudioCtx();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+        const notes = kind === 'big' ? [392, 523.25, 659.25, 783.99, 1046.5] : [523.25, 659.25, 783.99];
+        notes.forEach((freq, i) => {
+          const osc = ctx.createOscillator(), gain = ctx.createGain(), start = now + i * 0.11;
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(.0001, start);
+          gain.gain.exponentialRampToValueAtTime(.2, start + .015);
+          gain.gain.exponentialRampToValueAtTime(.0001, start + .3);
+          osc.connect(gain).connect(ctx.destination);
+          osc.start(start);
+          osc.stop(start + .32);
+        });
+      } catch (e) {}
+    }
+
+    const canvas = document.getElementById('fxCanvas');
+    let ctx = canvas ? canvas.getContext('2d') : null;
+    let particles = [];
+
+    function resizeCanvas() {
+      if (!canvas) return;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    function spawnSparks(x, y, color = '#fcd34d', count = 20) {
+      if (!ctx) return;
+      for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5 + 1.5;
+        particles.push({
+          x, y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 1.2,
+          color,
+          size: Math.random() * 3 + 1.5,
+          alpha: 1,
+          decay: Math.random() * 0.03 + 0.02
+        });
+      }
+    }
+
+    function renderParticles() {
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.12;
+        p.alpha -= p.decay;
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+          continue;
+        }
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      requestAnimationFrame(renderParticles);
+    }
+    requestAnimationFrame(renderParticles);
+
+    function speak(t) {
+      if (voice && window.speechSynthesis) {
+        speechSynthesis.cancel();
+        let u = new SpeechSynthesisUtterance(t);
+        u.lang = 'zh-TW';
+        u.rate = 1.05;
+        speechSynthesis.speak(u);
+      }
+    }
+
+    function notice(t) {
+      $('toast').textContent = t;
+      $('toast').classList.remove('translate-y-6', 'opacity-0');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => $('toast').classList.add('translate-y-6', 'opacity-0'), 2200);
+    }
+
+    function toggleVoice() {
+      voice = !voice;
+      $('navVoiceIcon').textContent = voice ? '🔊' : '🔇';
+      notice(voice ? '語音播報已開啟' : '語音播報已關閉');
+    }
+
+    /* ------------------------------------------------------------- */
+    /* Custom Avatar & Photo Album Upload Engine                     */
+    /* ------------------------------------------------------------- */
+    let curAvatarTarget = { index: 0, mode: 'three' };
+
+    function openAvatarModal(playerIndex, modeType = 'three') {
+      curAvatarTarget = { index: playerIndex, mode: modeType };
+      let curName = '';
+      if (modeType === 'three') curName = S.names[playerIndex];
+      else if (modeType === 'eight') curName = S_8BALL.names[playerIndex];
+      else if (modeType === 'snooker2p') curName = S_SNOOKER2P.names[playerIndex];
+
+      const listHtml = SNOOKER_LEGENDS.map(leg => `
+        <div onclick=\"selectLegendAvatar('${leg.id}')\" class=\"tactile-press glass-capsule rounded-[22px] p-3 flex items-center gap-3.5 border border-brand-gold/25 hover:border-brand-gold cursor-pointer transition-all hover:bg-black/60\">
+          <img src=\"${leg.img}\" onerror=\"this.src='${leg.img}'\" class=\"h-12 w-12 rounded-full object-cover border-2 border-brand-gold shrink-0 shadow-lg bg-stone-900\">
+          <div class=\"flex-1 min-w-0\">
+            <div class=\"flex items-center justify-between\">
+              <b class=\"text-sm font-black text-white truncate\">${leg.name}</b>
+              <span class=\"text-[10px] text-brand-gold font-bold shrink-0\">${leg.country}</span>
+            </div>
+            <span class=\"text-[11px] text-amber-300 font-mono block mt-0.5\">${leg.nick}</span>
+            <small class=\"text-[10px] text-slate-400 block truncate mt-0.5\">${leg.titles}</small>
+          </div>
+        </div>
+      `).join('');
+
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <div>
+            <h3 class=\"text-xl font-black text-brand-gold flex items-center gap-2\">🏆 選擇頭像與相冊</h3>
+            <p class=\"text-xs text-slate-300 mt-0.5\">為【${curName}】指定球星頭像或從本機相冊上傳</p>
+          </div>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white text-lg\">✕</button>
+        </div>
+
+        <div class=\"mt-4\">
+          <button onclick=\"$('avatarFileInput').click()\" class=\"tactile-press w-full py-3.5 rounded-2xl bg-gradient-to-r from-amber-500/20 via-brand-gold/30 to-amber-500/20 border-2 border-dashed border-brand-gold/60 text-brand-gold font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg hover:bg-brand-gold/30\">
+            <span class=\"text-lg\">📸</span> <span>從手機 / 電腦相冊上傳自訂頭像</span>
+          </button>
+        </div>
+
+        <div class=\"mt-3.5 space-y-2.5 max-h-[50vh] overflow-y-auto pr-1\">
+          <div class=\"text-[11px] font-bold text-amber-300/80 mb-1\">或選擇世界斯諾克名將：</div>
+          ${listHtml}
+        </div>
+        <div class=\"mt-4 pt-3 border-t border-brand-gold/20 flex justify-end\">
+          <button onclick=\"closeModal()\" class=\"tactile-press px-4 py-2 bg-stone-900 text-slate-200 font-bold rounded-xl border border-white/10\">關閉</button>
+        </div>
+      `);
+    }
+
+    function handleAvatarFileSelected(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const customUrl = evt.target.result;
+        applyAvatarUrl(customUrl, '自訂相冊相片');
+      };
+      reader.readAsDataURL(file);
+      e.target.value = '';
+    }
+
+    function selectLegendAvatar(legendId) {
+      const leg = SNOOKER_LEGENDS.find(x => x.id === legendId);
+      if (!leg) return;
+      applyAvatarUrl(leg.img, leg.name);
+    }
+
+    function applyAvatarUrl(imgUrl, nameLabel) {
+      const { index, mode } = curAvatarTarget;
+
+      if (mode === 'three') {
+        if (!S.avatars) S.avatars = [];
+        S.avatars[index] = imgUrl;
+        if (nameLabel !== '自訂相冊相片') S.names[index] = nameLabel;
+        if ($('threeHomeAvatarImg' + index)) $('threeHomeAvatarImg' + index).src = imgUrl;
+        if ($('threeHomeP' + index) && nameLabel !== '自訂相冊相片') $('threeHomeP' + index).value = nameLabel;
+        renderThree();
+      } else if (mode === 'eight') {
+        S_8BALL.avatars[index] = imgUrl;
+        if (nameLabel !== '自訂相冊相片') S_8BALL.names[index] = nameLabel;
+        renderEightBall();
+      } else if (mode === 'snooker2p') {
+        S_SNOOKER2P.avatars[index] = imgUrl;
+        if (nameLabel !== '自訂相冊相片') S_SNOOKER2P.names[index] = nameLabel;
+        renderSnooker2p();
+      }
+
+      closeModal();
+      notice(`已套用頭像：${nameLabel}`);
+    }
+
+    /* ------------------------------------------------------------- */
+    /* MODE 1: 三人追分業務邏輯 (Three Chase Engine)                 */
+    /* ------------------------------------------------------------- */
+    function launchThreeChase(mode) {
+      const p0 = $('threeHomeP0').value.trim() || '奧蘇利雲';
+      const p1 = $('threeHomeP1').value.trim() || '卓林普';
+      const p2 = $('threeHomeP2').value.trim() || '傅家俊';
+      S.names = [p0, p1, p2];
+      S.mode = mode;
+      $('threeChase_home').classList.add('hidden');
+      $('threeChase_game').classList.remove('hidden');
+      $('threeChase_game').offsetHeight;
+      $('threeChase_game').classList.add('fade-slide-up');
+      renderThree();
+      notice(`已開啟三人追分 · ${mode === 'snooker' ? '斯諾克' : '14710'} 賽制`);
+    }
+
+    function threeGoHome() {
+      $('threeChase_game').classList.add('hidden');
+      $('threeChase_home').classList.remove('hidden');
+    }
+
+    function net(i) {
+      return [0, 1, 2].filter(j => j !== i).reduce((sum, j) => sum + S.matrix[i][j] - S.matrix[j][i] + S.handicap[j][i] - S.handicap[i][j], 0);
+    }
+
+    function renderThree() {
+      const sn = S.mode === 'snooker';
+      $('threeHudModeName').textContent = sn ? 'SNOOKER 3P 追分' : '14710 追分賽制';
+      $('threeSnookerControls').classList.toggle('hidden', !sn);
+      $('threeNineControls').classList.toggle('hidden', sn);
+
+      const a = S.active, u = S.upstream;
+      $('threeHudDuelState').textContent = S.combat ? `1v1 互搏鎖定 (${S.names[a]} PK ${S.names[u]})` : `順位輪流中 (${S.names[a]} 上桌)`;
+      $('threeBreakNumber').textContent = `+${S.break} PTS`;
+
+      const trail = $('threeBreakTrail');
+      if (S.breakBalls && S.breakBalls.length > 0) {
+        trail.innerHTML = S.breakBalls.map(b => `
+          <div class=\"shrink-0 flex items-center gap-1 bg-stone-900 border border-brand-gold/20 px-2 py-0.5 rounded-lg\">
+            <span class=\"h-2.5 w-2.5 rounded-full\" style=\"background-color: ${b.color};\"></span>
+            <span class=\"text-[10px] font-black text-white num-tabular\">+${b.p}</span>
+          </div>
+        `).join('<span class=\"text-amber-500/60 text-xs\">➔</span>');
+      } else {
+        trail.innerHTML = `<span class=\"text-xs text-slate-500 font-mono\">未進球</span>`;
+      }
+
+      $('threePlayerStage').innerHTML = S.names.map((name, i) => {
+        const isStriker = (i === a);
+        const isTarget = (i === u);
+        const avatarUrl = S.avatars[i] || 'avatars/ronnie.jpg';
+        const totalNet = net(i);
+        const opponents = [0, 1, 2].filter(j => j !== i);
+        const roleText = isStriker ? '出桿中' : (isTarget ? (S.combat ? 'PK對手' : '目標上家') : '觀戰');
+
+        const cardClass = isStriker 
+          ? 'border-2 border-brand-gold bg-gradient-to-b from-[#2a2010] via-[#151008] to-[#080604] striker-active-glow shadow-2xl shadow-amber-500/20'
+          : isTarget 
+            ? 'border-2 border-sky-400 bg-gradient-to-b from-[#0f202e] via-[#07131d] to-[#03080d] shadow-xl shadow-sky-500/15'
+            : 'border border-brand-gold/20 bg-gradient-to-b from-[#16120c] via-[#0d0a07] to-[#050403] opacity-80 hover:opacity-100';
+
+        const badgeClass = isStriker 
+          ? 'bg-gradient-to-r from-amber-400 to-brand-gold text-stone-950 font-black shadow-md'
+          : isTarget 
+            ? 'bg-sky-400 text-stone-950 font-black shadow-md'
+            : 'bg-stone-800 text-slate-300 font-bold border border-white/10';
+
+        const netColor = totalNet > 0 ? 'text-amber-400' : totalNet < 0 ? 'text-rose-400' : 'text-slate-300';
+        const netChipBg = totalNet > 0 ? 'bg-amber-500/15 border-brand-gold/40' : totalNet < 0 ? 'bg-rose-500/10 border-rose-500/30' : 'bg-stone-900 border-white/10';
+        const diffAgainstShooter = (i === a) ? S.scores[a] - S.scores[u] : S.scores[i] - S.scores[a];
+
+        const pkStatLine = j => {
+          const v = S.matrix[i][j] - S.matrix[j][i];
+          return v > 0 
+            ? `<div class=\"flex justify-between items-center\"><span>對${S.names[j]}</span><b class=\"text-amber-400 font-black\">+${v}</b></div>` 
+            : v < 0 
+              ? `<div class=\"flex justify-between items-center\"><span>對${S.names[j]}</span><b class=\"text-rose-400\">${v}</b></div>` 
+              : `<div class=\"flex justify-between items-center text-slate-400\"><span>對${S.names[j]}</span><b>0</b></div>`;
+        };
+
+        return `
+          <div class=\"col-span-1 rounded-[22px] p-2.5 sm:p-4 flex flex-col justify-between transition-all duration-300 relative overflow-hidden ${cardClass}\">
+            <div>
+              <div class=\"flex items-center justify-between gap-1 mb-2 sm:mb-2.5\">
+                <div onclick=\"openAvatarModal(${i}, 'three')\" class=\"relative cursor-pointer shrink-0\" title=\"點擊換頭像/相冊\">
+                  <img src=\"${avatarUrl}\" class=\"h-9 w-9 sm:h-14 sm:w-14 rounded-full object-cover border-2 ${isStriker ? 'border-brand-gold shadow-md shadow-amber-500/40' : 'border-brand-gold/30'} bg-stone-900\">
+                  <span class=\"absolute -bottom-1 -right-1 bg-brand-gold text-stone-950 rounded-full h-3.5 w-3.5 sm:h-4 sm:w-4 flex items-center justify-center text-[7px] sm:text-[9px] font-black shadow\">✏️</span>
+                </div>
+                <span class=\"text-[9px] sm:text-xs rounded-full px-1.5 sm:px-2.5 py-0.5 ${badgeClass} shrink-0 truncate\">
+                  ${roleText}
+                </span>
+              </div>
+
+              <h3 class=\"text-xs sm:text-base font-black text-white truncate font-display text-center mb-1\">
+                ${name}
+              </h3>
+
+              <div class=\"text-center my-1 sm:my-2\">
+                <b class=\"num-tabular text-3xl sm:text-5xl md:text-6xl font-black text-white drop-shadow-md tracking-tight block leading-none\">
+                  ${S.scores[i]}
+                </b>
+              </div>
+
+              <div class=\"text-center\">
+                <div class=\"inline-flex items-center gap-1 text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full border ${netChipBg}\">
+                  <span class=\"text-slate-300\">淨分</span>
+                  <b class=\"${netColor} num-tabular\">${totalNet > 0 ? '+' : ''}${totalNet}</b>
+                </div>
+              </div>
+            </div>
+
+            <div class=\"pt-2 border-t border-brand-gold/20 text-[9px] sm:text-xs font-mono text-slate-300 space-y-0.5 mt-2\">
+              <div class=\"text-[8px] sm:text-[10px] text-center font-bold text-amber-200/80 mb-0.5 truncate\">
+                ${isStriker ? `🎯 對手差: ${diffAgainstShooter >= 0 ? '+' : ''}${diffAgainstShooter}` : (isTarget ? `與出桿者: ${diffAgainstShooter >= 0 ? '+' : ''}${diffAgainstShooter}` : '對局紀錄')}
+              </div>
+              ${pkStatLine(opponents[0])}
+              ${pkStatLine(opponents[1])}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function snapThree() {
+      S.history.push(JSON.stringify({ ...S, history: [] }));
+      if (S.history.length > 30) S.history.shift();
+    }
+
+    function scoreSnooker(p, label, ev) {
+      snapThree();
+      const a = S.active, u = S.upstream;
+      S.scores[a] += p;
+      S.matrix[a][u] += p;
+      S.break += p;
+      S.turnScored = true;
+      S.scorer = a;
+      if (!S.breakBalls) S.breakBalls = [];
+      const colors = ['#ff6b6b','#facc15','#22c55e','#ea580c','#3b82f6','#f43f5e','#fcd34d'];
+      S.breakBalls.push({ p, name: label, color: colors[p-1] });
+      speak(`${label} ${p}分`);
+      playPotSound(p);
+      if (ev) spawnSparks(ev.clientX || window.innerWidth/2, ev.clientY || window.innerHeight/2, colors[p-1], 20);
+      renderThree();
+    }
+
+    function endTurn(ev) {
+      snapThree();
+      const prev = S.active;
+      if (S.turnScored) {
+        const scorer = prev, target = S.upstream;
+        S.active = target;
+        S.upstream = scorer;
+        S.combat = true;
+        S.scorer = scorer;
+        S.combatMisses = 0;
+        speak(`${S.names[scorer]} 單桿${S.break}分，換${S.names[target]}互搏`);
+      } else if (S.combat) {
+        S.combatMisses++;
+        if (S.combatMisses >= 2) {
+          S.active = S.scorer;
+          S.upstream = prev;
+          S.combat = false;
+          S.combatMisses = 0;
+          speak(`連續失誤，歸還莊家`);
+        } else {
+          const third = [0, 1, 2].find(i => i !== prev && i !== S.upstream);
+          S.active = third;
+          S.upstream = prev;
+          S.combat = true;
+        }
+      } else {
+        S.active = (prev + 1) % 3;
+        S.upstream = prev;
+      }
+      S.break = 0;
+      S.turnScored = false;
+      S.breakBalls = [];
+      renderThree();
+    }
+
+    function applyFoul(p) {
+      snapThree();
+      const foul = S.active, benefit = S.upstream;
+      S.scores[benefit] += p;
+      S.matrix[benefit][foul] += p;
+      S.active = benefit;
+      S.upstream = foul;
+      S.combat = true;
+      S.scorer = benefit;
+      S.combatMisses = 0;
+      S.break = 0;
+      S.turnScored = false;
+      S.breakBalls = [];
+      playFoulSound();
+      closeModal();
+      notice(`犯規：${S.names[benefit]} +${p} 分`);
+      renderThree();
+    }
+
+    function nineAction(type, ev) {
+      snapThree();
+      const a = S.active, u = S.upstream, others = [0, 1, 2].filter(i => i !== a);
+      if (type === 'foul') {
+        S.scores[a]--;
+        S.scores[u]++;
+        S.matrix[u][a]++;
+        S.active = u;
+        S.upstream = a;
+        S.combat = true;
+        playFoulSound();
+      } else if (type === 'normal' || type === 'small') {
+        const v = type === 'normal' ? 4 : 7;
+        S.scores[a] += v;
+        S.scores[u] -= v;
+        S.matrix[a][u] += v;
+        playWinSound(type === 'small' ? 'big' : 'normal');
+      } else {
+        const each = type === 'big' ? 10 : 4;
+        S.scores[a] += each * 2;
+        others.forEach(i => {
+          S.scores[i] -= each;
+          S.matrix[a][i] += each;
+        });
+        playWinSound('big');
+      }
+      renderThree();
+    }
+
+    function undoThree() {
+      if (!S.history.length) return notice('沒有可撤銷的操作');
+      const h = S.history.pop();
+      S = { ...JSON.parse(h), history: S.history };
+      renderThree();
+      notice('已撤銷');
+    }
+
+    function manualTurn() {
+      snapThree();
+      const prev = S.active;
+      S.active = (S.active + 1) % 3;
+      S.upstream = prev;
+      S.combat = false;
+      S.break = 0;
+      S.turnScored = false;
+      S.breakBalls = [];
+      renderThree();
+      notice(`球權交給 ${S.names[S.active]}`);
+    }
+
+    /* ------------------------------------------------------------- */
+    /* MODE 2: 中式8球 雙人對戰業務邏輯 (Chinese 8-Ball 2P Engine)    */
+    /* ------------------------------------------------------------- */
+    function snapEight() {
+      S_8BALL.history.push(JSON.stringify({ ...S_8BALL, history: [] }));
+      if (S_8BALL.history.length > 30) S_8BALL.history.shift();
+    }
+
+    function renderEightBall() {
+      const a = S_8BALL.active;
+      $('eightBallDuelStatus').textContent = `出桿權：${S_8BALL.names[a]}`;
+      
+      $('eightAvatarImg0').src = S_8BALL.avatars[0];
+      $('eightName0').textContent = S_8BALL.names[0];
+      $('eightWins0').textContent = S_8BALL.wins[0];
+      $('eightRemaining0').textContent = S_8BALL.remainingBalls[0];
+      $('eightStreak0').textContent = S_8BALL.streaks[0];
+      $('eightBadge0').textContent = a === 0 ? '👑 出桿中' : '等待中';
+      $('eightBadge0').className = a === 0 
+        ? 'text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-brand-gold text-stone-950 font-black shrink-0 shadow-md'
+        : 'text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-stone-800 text-slate-300 font-bold shrink-0';
+      $('eightCard0').className = a === 0
+        ? 'glass-tile p-3.5 sm:p-6 flex flex-col justify-between border-2 border-brand-gold striker-active-glow relative overflow-hidden'
+        : 'glass-tile p-3.5 sm:p-6 flex flex-col justify-between border border-brand-gold/20 opacity-85 relative overflow-hidden';
+
+      $('eightAvatarImg1').src = S_8BALL.avatars[1];
+      $('eightName1').textContent = S_8BALL.names[1];
+      $('eightWins1').textContent = S_8BALL.wins[1];
+      $('eightRemaining1').textContent = S_8BALL.remainingBalls[1];
+      $('eightStreak1').textContent = S_8BALL.streaks[1];
+      $('eightBadge1').textContent = a === 1 ? '👑 出桿中' : '等待中';
+      $('eightBadge1').className = a === 1 
+        ? 'text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-brand-gold text-stone-950 font-black shrink-0 shadow-md'
+        : 'text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-stone-800 text-slate-300 font-bold shrink-0';
+      $('eightCard1').className = a === 1
+        ? 'glass-tile p-3.5 sm:p-6 flex flex-col justify-between border-2 border-brand-gold striker-active-glow relative overflow-hidden'
+        : 'glass-tile p-3.5 sm:p-6 flex flex-col justify-between border border-brand-gold/20 opacity-85 relative overflow-hidden';
+    }
+
+    function switchEightBallStriker() {
+      snapEight();
+      S_8BALL.active = 1 - S_8BALL.active;
+      renderEightBall();
+      notice(`球權切換至 ${S_8BALL.names[S_8BALL.active]}`);
+    }
+
+    function changeEightRemaining(playerIdx, delta) {
+      snapEight();
+      let cur = S_8BALL.remainingBalls[playerIdx] + delta;
+      if (cur < 0) cur = 0;
+      if (cur > 7) cur = 7;
+      S_8BALL.remainingBalls[playerIdx] = cur;
+      renderEightBall();
+    }
+
+    function eightAction(type, ev) {
+      snapEight();
+      const a = S_8BALL.active;
+      const other = 1 - a;
+      const x = ev ? (ev.clientX || window.innerWidth / 2) : window.innerWidth / 2;
+      const y = ev ? (ev.clientY || window.innerHeight / 2) : window.innerHeight / 2;
+
+      if (type === 'break_clear') {
+        S_8BALL.wins[a] += 2;
+        S_8BALL.streaks[a] += 1;
+        S_8BALL.streaks[other] = 0;
+        S_8BALL.remainingBalls = [7, 7];
+        playWinSound('big');
+        spawnSparks(x, y, '#fcd34d', 35);
+        speak(`${S_8BALL.names[a]} 炸清獲勝，加兩局！`);
+        notice(`💣 ${S_8BALL.names[a]} 炸清獲勝 (+2勝局)！`);
+      } else if (type === 'table_clear') {
+        S_8BALL.wins[a] += 1;
+        S_8BALL.streaks[a] = 0;
+        S_8BALL.streaks[other] = 0;
+        S_8BALL.remainingBalls = [7, 7];
+        playWinSound('normal');
+        spawnSparks(x, y, '#38bdf8', 25);
+        speak(`${S_8BALL.names[a]} 接清獲勝，加一局！`);
+        notice(`🧹 ${S_8BALL.names[a]} 接清獲勝 (+1勝局)！`);
+      } else if (type === 'normal_win') {
+        S_8BALL.wins[a] += 1;
+        S_8BALL.streaks[a] = 0;
+        S_8BALL.streaks[other] = 0;
+        S_8BALL.remainingBalls = [7, 7];
+        playWinSound('normal');
+        spawnSparks(x, y, '#f59e0b', 20);
+        speak(`${S_8BALL.names[a]} 普勝獲勝，加一局！`);
+        notice(`🏆 ${S_8BALL.names[a]} 普勝獲勝 (+1勝局)！`);
+      } else if (type === 'foul') {
+        S_8BALL.active = other;
+        playFoulSound();
+        spawnSparks(x, y, '#f43f5e', 20);
+        speak(`犯規，交換球權給${S_8BALL.names[other]}`);
+        notice(`🚨 ${S_8BALL.names[a]} 犯規！球權交給 ${S_8BALL.names[other]}`);
+      }
+
+      renderEightBall();
+    }
+
+    function undoEight() {
+      if (!S_8BALL.history.length) return notice('沒有可撤銷的操作');
+      const h = S_8BALL.history.pop();
+      S_8BALL = { ...JSON.parse(h), history: S_8BALL.history };
+      renderEightBall();
+      notice('已撤銷上一步動作');
+    }
+
+    function resetEightBallRack() {
+      snapEight();
+      S_8BALL.remainingBalls = [7, 7];
+      renderEightBall();
+      notice('已重置本局剩餘球數（雙方 7 顆）');
+    }
+
+    function resetEightBallMatch() {
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-lg font-black text-brand-gold\">⚙️ 重置中式8球對局</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white\">✕</button>
+        </div>
+        <div class=\"mt-4 space-y-3 text-xs sm:text-sm\">
+          <label class=\"block text-slate-300 font-bold\">
+            選手 1 名稱
+            <input id=\"renameEight0\" value=\"${S_8BALL.names[0]}\" class=\"mt-1 w-full rounded-xl bg-stone-900 border border-brand-gold/20 p-2.5 text-white font-bold\">
+          </label>
+          <label class=\"block text-slate-300 font-bold\">
+            選手 2 名稱
+            <input id=\"renameEight1\" value=\"${S_8BALL.names[1]}\" class=\"mt-1 w-full rounded-xl bg-stone-900 border border-brand-gold/20 p-2.5 text-white font-bold\">
+          </label>
+        </div>
+        <div class=\"grid grid-cols-2 gap-3 mt-5\">
+          <button onclick=\"applyResetEightBallMatch()\" class=\"tactile-press py-3 rounded-xl bg-gradient-to-r from-amber-400 to-brand-gold text-stone-950 font-black text-xs\">
+            確認開啟全新對局
+          </button>
+          <button onclick=\"closeModal()\" class=\"tactile-press py-3 rounded-xl bg-stone-900 text-slate-200 font-bold text-xs border border-white/15\">
+            取消
+          </button>
+        </div>
+      `);
+    }
+
+    function applyResetEightBallMatch() {
+      const n0 = $('renameEight0').value.trim() || '選手 1';
+      const n1 = $('renameEight1').value.trim() || '選手 2';
+      S_8BALL = {
+        names: [n0, n1],
+        avatars: S_8BALL.avatars,
+        active: 0,
+        wins: [0, 0],
+        remainingBalls: [7, 7],
+        streaks: [0, 0],
+        history: [],
+        logs: []
+      };
+      closeModal();
+      renderEightBall();
+      notice('已開啟全新中式8球對戰！');
+    }
+
+    /* ------------------------------------------------------------- */
+    /* MODE 3: 斯諾克 雙人記分業務邏輯 (Snooker 2P Engine)           */
+    /* ------------------------------------------------------------- */
+    function snapSnooker2p() {
+      S_SNOOKER2P.history.push(JSON.stringify({ ...S_SNOOKER2P, history: [] }));
+      if (S_SNOOKER2P.history.length > 30) S_SNOOKER2P.history.shift();
+    }
+
+    function renderSnooker2p() {
+      const a = S_SNOOKER2P.active;
+      $('snooker2pDuelStatus').textContent = `出桿權：${S_SNOOKER2P.names[a]} (當前單桿 +${S_SNOOKER2P.currentBreak})`;
+
+      $('snooker2pAvatarImg0').src = S_SNOOKER2P.avatars[0];
+      $('snooker2pName0').textContent = S_SNOOKER2P.names[0];
+      $('snooker2pTotal0').textContent = S_SNOOKER2P.totalScores[0];
+      $('snooker2pBreak0').textContent = a === 0 ? `+${S_SNOOKER2P.currentBreak}` : '+0';
+      $('snooker2pHigh0').textContent = S_SNOOKER2P.highestBreak[0];
+      $('snooker2pBadge0').textContent = a === 0 ? '👑 出桿中' : '等待中';
+      $('snooker2pBadge0').className = a === 0 
+        ? 'text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-brand-gold text-stone-950 font-black shrink-0 shadow-md'
+        : 'text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-stone-800 text-slate-300 font-bold shrink-0';
+      $('snooker2pCard0').className = a === 0
+        ? 'glass-tile p-3.5 sm:p-6 flex flex-col justify-between border-2 border-brand-gold striker-active-glow relative overflow-hidden'
+        : 'glass-tile p-3.5 sm:p-6 flex flex-col justify-between border border-brand-gold/20 opacity-85 relative overflow-hidden';
+
+      $('snooker2pAvatarImg1').src = S_SNOOKER2P.avatars[1];
+      $('snooker2pName1').textContent = S_SNOOKER2P.names[1];
+      $('snooker2pTotal1').textContent = S_SNOOKER2P.totalScores[1];
+      $('snooker2pBreak1').textContent = a === 1 ? `+${S_SNOOKER2P.currentBreak}` : '+0';
+      $('snooker2pHigh1').textContent = S_SNOOKER2P.highestBreak[1];
+      $('snooker2pBadge1').textContent = a === 1 ? '👑 出桿中' : '等待中';
+      $('snooker2pBadge1').className = a === 1 
+        ? 'text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-brand-gold text-stone-950 font-black shrink-0 shadow-md'
+        : 'text-[9px] sm:text-xs rounded-full px-2 sm:px-3 py-0.5 sm:py-1 bg-stone-800 text-slate-300 font-bold shrink-0';
+      $('snooker2pCard1').className = a === 1
+        ? 'glass-tile p-3.5 sm:p-6 flex flex-col justify-between border-2 border-brand-gold striker-active-glow relative overflow-hidden'
+        : 'glass-tile p-3.5 sm:p-6 flex flex-col justify-between border border-brand-gold/20 opacity-85 relative overflow-hidden';
+    }
+
+    function scoreSnooker2p(points, ballLabel, ev) {
+      snapSnooker2p();
+      S_SNOOKER2P.currentBreak += points;
+      const colors = ['#ff6b6b','#facc15','#22c55e','#ea580c','#3b82f6','#f43f5e','#fcd34d'];
+      const clr = colors[points-1] || '#fcd34d';
+      speak(`${ballLabel} ${points}分`);
+      playPotSound(points);
+      if (ev) spawnSparks(ev.clientX || window.innerWidth / 2, ev.clientY || window.innerHeight / 2, clr, 18);
+      renderSnooker2p();
+    }
+
+    function endSnooker2pBreak(ev) {
+      snapSnooker2p();
+      const a = S_SNOOKER2P.active;
+      const other = 1 - a;
+      const brk = S_SNOOKER2P.currentBreak;
+
+      S_SNOOKER2P.totalScores[a] += brk;
+      if (brk > S_SNOOKER2P.highestBreak[a]) {
+        S_SNOOKER2P.highestBreak[a] = brk;
+      }
+      S_SNOOKER2P.currentBreak = 0;
+      S_SNOOKER2P.active = other;
+
+      if (brk > 0) {
+        speak(`${S_SNOOKER2P.names[a]} 單桿${brk}分，換${S_SNOOKER2P.names[other]}`);
+        notice(`⚡ ${S_SNOOKER2P.names[a]} 本桿結算 +${brk} 分，換 ${S_SNOOKER2P.names[other]} 出桿`);
+      } else {
+        notice(`換 ${S_SNOOKER2P.names[other]} 出桿`);
+      }
+      renderSnooker2p();
+    }
+
+    function openSnooker2pFoulModal() {
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-lg font-black text-rose-400 flex items-center gap-2\">🚨 斯諾克雙人犯規判罰</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white\">✕</button>
+        </div>
+        <p class=\"mt-3 text-xs leading-relaxed text-amber-200 bg-stone-950 p-3 rounded-xl border border-brand-gold/30\">
+          犯規罰分將直接加給對手總分，當前出桿者結束本桿並交換球權。
+        </p>
+        <div class=\"grid grid-cols-4 gap-2.5 mt-4\">
+          <button onclick=\"applySnooker2pFoul(4)\" class=\"tactile-press rounded-2xl bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-500/80 py-3.5 text-2xl font-black text-white shadow-xl\">
+            4<small class=\"block text-[10px] text-rose-200 mt-0.5\">分罰分</small>
+          </button>
+          <button onclick=\"applySnooker2pFoul(5)\" class=\"tactile-press rounded-2xl bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-500/80 py-3.5 text-2xl font-black text-white shadow-xl\">
+            5<small class=\"block text-[10px] text-rose-200 mt-0.5\">分罰分</small>
+          </button>
+          <button onclick=\"applySnooker2pFoul(6)\" class=\"tactile-press rounded-2xl bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-500/80 py-3.5 text-2xl font-black text-white shadow-xl\">
+            6<small class=\"block text-[10px] text-rose-200 mt-0.5\">分罰分</small>
+          </button>
+          <button onclick=\"applySnooker2pFoul(7)\" class=\"tactile-press rounded-2xl bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-500/80 py-3.5 text-2xl font-black text-white shadow-xl\">
+            7<small class=\"block text-[10px] text-rose-200 mt-0.5\">分罰分</small>
+          </button>
+        </div>
+        <button onclick=\"closeModal()\" class=\"tactile-press mt-4 w-full rounded-xl bg-stone-900 py-3 text-xs font-bold text-slate-200 border border-white/10\">取消</button>
+      `);
+    }
+
+    function applySnooker2pFoul(penalty) {
+      snapSnooker2p();
+      const foulPlayer = S_SNOOKER2P.active;
+      const benefitPlayer = 1 - foulPlayer;
+
+      S_SNOOKER2P.totalScores[benefitPlayer] += penalty;
+      S_SNOOKER2P.currentBreak = 0;
+      S_SNOOKER2P.active = benefitPlayer;
+
+      playFoulSound();
+      closeModal();
+      speak(`犯規，${S_SNOOKER2P.names[benefitPlayer]}獲得罰分${penalty}分`);
+      notice(`🚨 ${S_SNOOKER2P.names[foulPlayer]} 犯規！${S_SNOOKER2P.names[benefitPlayer]} +${penalty} 分並取得球權`);
+      renderSnooker2p();
+    }
+
+    function undoSnooker2p() {
+      if (!S_SNOOKER2P.history.length) return notice('沒有可撤銷的操作');
+      const h = S_SNOOKER2P.history.pop();
+      S_SNOOKER2P = { ...JSON.parse(h), history: S_SNOOKER2P.history };
+      renderSnooker2p();
+      notice('已撤銷');
+    }
+
+    function resetSnooker2pFrame() {
+      snapSnooker2p();
+      S_SNOOKER2P.totalScores = [0, 0];
+      S_SNOOKER2P.currentBreak = 0;
+      renderSnooker2p();
+      notice('已重置本局分數');
+    }
+
+    function resetSnooker2pMatch() {
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-lg font-black text-brand-gold\">⚙️ 重置斯諾克雙人對局</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white\">✕</button>
+        </div>
+        <div class=\"mt-4 space-y-3 text-xs sm:text-sm\">
+          <label class=\"block text-slate-300 font-bold\">
+            選手 1 名稱
+            <input id=\"renameSnooker0\" value=\"${S_SNOOKER2P.names[0]}\" class=\"mt-1 w-full rounded-xl bg-stone-900 border border-brand-gold/20 p-2.5 text-white font-bold\">
+          </label>
+          <label class=\"block text-slate-300 font-bold\">
+            選手 2 名稱
+            <input id=\"renameSnooker1\" value=\"${S_SNOOKER2P.names[1]}\" class=\"mt-1 w-full rounded-xl bg-stone-900 border border-brand-gold/20 p-2.5 text-white font-bold\">
+          </label>
+        </div>
+        <div class=\"grid grid-cols-2 gap-3 mt-5\">
+          <button onclick=\"applyResetSnooker2pMatch()\" class=\"tactile-press py-3 rounded-xl bg-gradient-to-r from-amber-400 to-brand-gold text-stone-950 font-black text-xs\">
+            確認開啟全新對局
+          </button>
+          <button onclick=\"closeModal()\" class=\"tactile-press py-3 rounded-xl bg-stone-900 text-slate-200 font-bold text-xs border border-white/15\">
+            取消
+          </button>
+        </div>
+      `);
+    }
+
+    function applyResetSnooker2pMatch() {
+      const n0 = $('renameSnooker0').value.trim() || '選手 1';
+      const n1 = $('renameSnooker1').value.trim() || '選手 2';
+      S_SNOOKER2P = {
+        names: [n0, n1],
+        avatars: S_SNOOKER2P.avatars,
+        active: 0,
+        totalScores: [0, 0],
+        currentBreak: 0,
+        highestBreak: [0, 0],
+        breakBalls: [],
+        history: [],
+        logs: []
+      };
+      closeModal();
+      renderSnooker2p();
+      notice('已開啟全新斯諾克雙人對戰！');
+    }
+
+    /* ========================================================================= */
+    /* MODULE 1: SNOOKER RENDERER (渲染模塊 + 3條瞄準輔助線即時渲染)               */
+    /* ========================================================================= */
+    const SnookerRenderer = {
+      draw: function(ctx, state) {
+        if (!ctx) return;
+        const { w, h, bounds, pockets, spots, cueBall, balls, aimAngle, power, spinType, isMoving, turn, inHand } = state;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // 1. Table Baize Cloth (Green Felt with subtle ambient vignette)
+        ctx.fillStyle = '#092d19';
+        ctx.fillRect(bounds.minX, bounds.minY, bounds.maxX - bounds.minX, bounds.maxY - bounds.minY);
+
+        // 2. Baulk Line (x = 210) & D-Zone Arc
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(210, bounds.minY);
+        ctx.lineTo(210, bounds.maxY);
+        ctx.stroke();
+
+        // D-Zone Arc (radius: 65, left semicircle)
+        ctx.beginPath();
+        ctx.arc(210, 240, 65, Math.PI * 0.5, Math.PI * 1.5);
+        ctx.stroke();
+
+        // 3. Mark Official Spots on Baize
+        Object.keys(spots).forEach(k => {
+          const sp = spots[k];
+          ctx.beginPath();
+          ctx.arc(sp.x, sp.y, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.fill();
+        });
+
+        // 4. Draw 6 Realistic Pockets with Brass Rim Plates
+        for (let p of pockets) {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = '#020603';
+          ctx.fill();
+
+          ctx.lineWidth = 2.5;
+          ctx.strokeStyle = '#d97706';
+          ctx.stroke();
+        }
+
+        // =========================================================================
+        // 5. 【新增！3 條瞄準輔助線即時渲染，球運動期間全部隱藏】
+        // =========================================================================
+        if (!isMoving && !cueBall.potted && turn === 0 && !inHand) {
+          const R = cueBall.r;
+          const cx = cueBall.x, cy = cueBall.y;
+          const dx = Math.cos(aimAngle), dy = Math.sin(aimAngle);
+
+          // A. Find cushion distance bound
+          let tCushion = 1200;
+          if (dx > 0) tCushion = Math.min(tCushion, (bounds.maxX - R - cx) / dx);
+          if (dx < 0) tCushion = Math.min(tCushion, (bounds.minX + R - cx) / dx);
+          if (dy > 0) tCushion = Math.min(tCushion, (bounds.maxY - R - cy) / dy);
+          if (dy < 0) tCushion = Math.min(tCushion, (bounds.minY + R - cy) / dy);
+          if (tCushion < 0) tCushion = 0;
+
+          // B. Raycast intersection against all active balls on table
+          let tHit = Infinity;
+          let targetBall = null;
+
+          for (let b of balls) {
+            if (b.potted || b === cueBall) continue;
+            const vx = b.x - cx, vy = b.y - cy;
+            const tProj = vx * dx + vy * dy;
+            if (tProj > 0) {
+              const distSq = (vx * vx + vy * vy) - (tProj * tProj);
+              const collisionDistSq = (R + b.r) * (R + b.r);
+              if (distSq <= collisionDistSq) {
+                const dCenterDist = Math.sqrt(Math.max(0, collisionDistSq - distSq));
+                const tImpact = tProj - dCenterDist;
+                if (tImpact > 0 && tImpact < tHit && tImpact <= tCushion) {
+                  tHit = tImpact;
+                  targetBall = b;
+                }
+              }
+            }
+          }
+
+          const maxAimDist = (tHit < Infinity) ? tHit : tCushion;
+          const ghostX = cx + dx * maxAimDist;
+          const ghostY = cy + dy * maxAimDist;
+
+          // -------------------------------------------------------------
+          // 輔助線 1: 球桿瞄準虛線 (從母球中心順著瞄準方向延伸，白色半透明虛線)
+          // -------------------------------------------------------------
+          ctx.save();
+          ctx.beginPath();
+          ctx.setLineDash([5, 5]);
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(ghostX, ghostY);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.75)';
+          ctx.lineWidth = 1.6;
+          ctx.stroke();
+          ctx.restore();
+
+          // Draw Ghost Cue Ball at impact point
+          ctx.save();
+          ctx.beginPath();
+          ctx.setLineDash([3, 3]);
+          ctx.arc(ghostX, ghostY, R, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
+          ctx.fill();
+          ctx.restore();
+
+          if (targetBall) {
+            // Compute Collision Normal Vector n (from ghost cue ball to target ball center)
+            const tdx = targetBall.x - ghostX;
+            const tdy = targetBall.y - ghostY;
+            const tDist = Math.hypot(tdx, tdy);
+            const nx = (tDist > 0) ? (tdx / tDist) : dx;
+            const ny = (tDist > 0) ? (tdy / tDist) : dy;
+
+            // -------------------------------------------------------------
+            // 輔助線 2: 目標球入球線 (計算碰撞點，畫出目標球飛向袋口的理論路徑，使用目標球顏色半透明實線)
+            // -------------------------------------------------------------
+            const targetLineLength = 250;
+            const targetEndX = targetBall.x + nx * targetLineLength;
+            const targetEndY = targetBall.y + ny * targetLineLength;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.setLineDash([]);
+            ctx.moveTo(targetBall.x, targetBall.y);
+            ctx.lineTo(targetEndX, targetEndY);
+            ctx.strokeStyle = targetBall.color || '#fcd34d';
+            ctx.globalAlpha = 0.85;
+            ctx.lineWidth = 2.2;
+            ctx.stroke();
+
+            // Target path end cap
+            ctx.beginPath();
+            ctx.arc(targetEndX, targetEndY, 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = targetBall.color || '#fcd34d';
+            ctx.fill();
+            ctx.restore();
+
+            // -------------------------------------------------------------
+            // 輔助線 3: 母球分離角切線 (90度參考切線，白色短虛線，代表無旋轉時的理論分離方向)
+            // -------------------------------------------------------------
+            // v_tangent = d - (d . n) n
+            const dotDN = dx * nx + dy * ny;
+            const tanVx = dx - dotDN * nx;
+            const tanVy = dy - dotDN * ny;
+            const tanLen = Math.hypot(tanVx, tanVy);
+
+            if (tanLen > 0.05) {
+              const txNorm = tanVx / tanLen;
+              const tyNorm = tanVy / tanLen;
+              const tangentLength = 85;
+              const tanEndX = ghostX + txNorm * tangentLength;
+              const tanEndY = ghostY + tyNorm * tangentLength;
+
+              ctx.save();
+              ctx.beginPath();
+              ctx.setLineDash([3, 3]);
+              ctx.moveTo(ghostX, ghostY);
+              ctx.lineTo(tanEndX, tanEndY);
+              ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+              ctx.lineWidth = 1.6;
+              ctx.stroke();
+
+              // 90-degree tangent indicator end dot
+              ctx.beginPath();
+              ctx.arc(tanEndX, tanEndY, 2.5, 0, Math.PI * 2);
+              ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+
+          // Cue Stick Illustration behind Cue Ball
+          const cueGap = 16 + (power / 100) * 24;
+          const stickStartX = cx - dx * cueGap;
+          const stickStartY = cy - dy * cueGap;
+          const stickEndX = cx - dx * (cueGap + 185);
+          const stickEndY = cy - dy * (cueGap + 185);
+
+          ctx.save();
+          ctx.beginPath();
+          ctx.moveTo(stickStartX, stickStartY);
+          ctx.lineTo(stickEndX, stickEndY);
+          ctx.strokeStyle = '#b45309';
+          ctx.lineWidth = 5;
+          ctx.lineCap = 'round';
+          ctx.stroke();
+
+          // Chalked Blue Tip
+          ctx.beginPath();
+          ctx.arc(stickStartX, stickStartY, 2.5, 0, Math.PI * 2);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fill();
+          ctx.restore();
+        }
+
+        // 6. Draw 3D Snooker Balls with Soft Ambient Shadow & Specular Highlight
+        for (let b of balls) {
+          if (b.potted) continue;
+
+          // Ambient Shadow
+          ctx.beginPath();
+          ctx.arc(b.x + 1.2, b.y + 1.5, b.r, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+          ctx.fill();
+
+          // Sphere Core
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          ctx.fillStyle = b.color;
+          ctx.fill();
+
+          // Highlight
+          ctx.beginPath();
+          ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.38, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.48)';
+          ctx.fill();
+        }
+      }
+    };
+
+    /* ========================================================================= */
+    /* MODULE 2: SNOOKER PHYSICS ENGINE (物理模擬模塊)                           */
+    /* ========================================================================= */
+    const SnookerPhysics = {
+      step: function(balls, cueBall, bounds, pockets, friction, onFirstHit, onBallPotted) {
+        let anyMoving = false;
+
+        // Perform 3 sub-steps per frame for precision and zero tunneling
+        const subSteps = 3;
+        for (let step = 0; step < subSteps; step++) {
+          
+          // 1. Move & Cushion Collisions
+          for (let i = 0; i < balls.length; i++) {
+            const b = balls[i];
+            if (b.potted) continue;
+
+            b.x += b.vx / subSteps;
+            b.y += b.vy / subSteps;
+            b.vx *= Math.pow(friction, 1 / subSteps);
+            b.vy *= Math.pow(friction, 1 / subSteps);
+
+            if (Math.abs(b.vx) < 0.03) b.vx = 0;
+            if (Math.abs(b.vy) < 0.03) b.vy = 0;
+            if (b.vx !== 0 || b.vy !== 0) anyMoving = true;
+
+            // Cushion Rebound + English Spin Deflection
+            if (b.x - b.r < bounds.minX) {
+              b.x = bounds.minX + b.r;
+              b.vx = -b.vx * 0.84;
+              if (b.spinX) { b.vy += b.spinX * 0.5; b.spinX *= 0.5; }
+              playCushionSound();
+            }
+            if (b.x + b.r > bounds.maxX) {
+              b.x = bounds.maxX - b.r;
+              b.vx = -b.vx * 0.84;
+              if (b.spinX) { b.vy += b.spinX * 0.5; b.spinX *= 0.5; }
+              playCushionSound();
+            }
+            if (b.y - b.r < bounds.minY) {
+              b.y = bounds.minY + b.r;
+              b.vy = -b.vy * 0.84;
+              if (b.spinX) { b.vy += b.spinX * 0.5; b.spinX *= 0.5; }
+              playCushionSound();
+            }
+            if (b.y + b.r > bounds.maxY) {
+              b.y = bounds.maxY - b.r;
+              b.vy = -b.vy * 0.84;
+              if (b.spinX) { b.vy += b.spinX * 0.5; b.spinX *= 0.5; }
+              playCushionSound();
+            }
+
+            // Check Pocket Drops with realistic entry angle & rejection
+            for (let p of pockets) {
+              const dist = Math.hypot(b.x - p.x, b.y - p.y);
+              if (dist < p.r) {
+                const spd = Math.hypot(b.vx, b.vy);
+                if (spd > 15 && dist > p.r * 0.72) {
+                  b.vx = -b.vx * 0.5;
+                  b.vy = -b.vy * 0.5;
+                  playCushionSound();
+                  continue;
+                }
+                b.potted = true;
+                b.vx = 0; b.vy = 0;
+                onBallPotted(b);
+                break;
+              }
+            }
+          }
+
+          // 2. Ball-to-Ball Elastic Collisions
+          for (let i = 0; i < balls.length; i++) {
+            for (let j = i + 1; j < balls.length; j++) {
+              const b1 = balls[i], b2 = balls[j];
+              if (b1.potted || b2.potted) continue;
+
+              const dx = b2.x - b1.x;
+              const dy = b2.y - b1.y;
+              const dist = Math.hypot(dx, dy);
+              const minDist = b1.r + b2.r;
+
+              if (dist < minDist && dist > 0) {
+                // Record first ball touched by Cue ball
+                if (b1 === cueBall) onFirstHit(b2);
+                if (b2 === cueBall) onFirstHit(b1);
+
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const overlap = minDist - dist;
+                b1.x -= nx * overlap * 0.5;
+                b1.y -= ny * overlap * 0.5;
+                b2.x += nx * overlap * 0.5;
+                b2.y += ny * overlap * 0.5;
+
+                const kx = b1.vx - b2.vx;
+                const ky = b1.vy - b2.vy;
+                const p = (nx * kx + ny * ky);
+
+                b1.vx -= p * nx * 0.98;
+                b1.vy -= p * ny * 0.98;
+                b2.vx += p * nx * 0.98;
+                b2.vy += p * ny * 0.98;
+
+                // Backspin Draw effect
+                if (b1 === cueBall && b1.spinY) {
+                  b1.vx -= nx * b1.spinY * 1.3;
+                  b1.vy -= ny * b1.spinY * 1.3;
+                  b1.spinY *= 0.35;
+                }
+
+                playBallClackSound(Math.min(0.4, Math.abs(p) * 0.05));
+              }
+            }
+          }
+
+        }
+
+        return anyMoving;
+      }
+    };
+
+    /* ========================================================================= */
+    /* MODULE 3: SNOOKER REFEREE & RULES ENGINE (擊球合法性校驗與計分犯規模塊)    */
+    /* ========================================================================= */
+    const SnookerReferee = {
+      // Independent Core Validation Function: Evaluates legality, fouls, penalties, and points
+      validateAndScoreShot: function(ctx) {
+        const {
+          targetPhase,
+          firstHitBall,
+          cuePotted,
+          pottedReds,
+          pottedColors,
+          remainingRedsCount,
+          seqIndex,
+          sequenceColors,
+          spots,
+          strikerIndex,
+          playerNames
+        } = ctx;
+
+        const strikerName = playerNames[strikerIndex];
+        const opponentIndex = 1 - strikerIndex;
+        const opponentName = playerNames[opponentIndex];
+
+        let isFoul = false;
+        let penalty = 4;
+        let foulReason = '';
+        let pointsScored = 0;
+        let nextPhase = targetPhase;
+        let nextStriker = strikerIndex;
+        let respotBalls = [];
+        let isFrameWon = false;
+        let logText = '';
+
+        // -------------------------------------------------------------
+        // STEP 1: STRICT FOUL CHECKING (嚴格合法性校驗)
+        // -------------------------------------------------------------
+
+        // 1. Cue Ball Scratch / In-off (母球落袋)
+        if (cuePotted) {
+          isFoul = true;
+          foulReason = '母球摔袋落袋！';
+          penalty = Math.max(penalty, 4);
+        }
+
+        // 2. Missed All Balls (空桿未碰到任何目標球)
+        if (!firstHitBall && !cuePotted) {
+          isFoul = true;
+          foulReason = '空桿犯規！母球未觸碰任何目標球。';
+          penalty = Math.max(penalty, 4);
+          if (targetPhase === 'seq_color') {
+            const expKey = sequenceColors[seqIndex];
+            penalty = Math.max(penalty, spots[expKey].pts);
+          }
+        }
+
+        // 3. First Ball Hit Legality (首碰球合法性)
+        if (firstHitBall) {
+          if (targetPhase === 'red') {
+            if (firstHitBall.isColor) {
+              isFoul = true;
+              foulReason = `未先擊打紅球！母球先觸碰了【${firstHitBall.name}】。`;
+              penalty = Math.max(4, firstHitBall.pts);
+            }
+          } else if (targetPhase === 'color') {
+            if (firstHitBall.isRed) {
+              isFoul = true;
+              foulReason = `未先擊打彩球！進紅球後母球先觸碰了【紅球】。`;
+              penalty = 4;
+            }
+          } else if (targetPhase === 'seq_color') {
+            const expectedKey = sequenceColors[seqIndex];
+            if (firstHitBall.id !== expectedKey) {
+              isFoul = true;
+              foulReason = `清台順序錯誤！當前目標應為【${spots[expectedKey].name}】，母球卻先觸碰了【${firstHitBall.name}】。`;
+              penalty = Math.max(4, spots[expectedKey].pts, firstHitBall.pts || 4);
+            }
+          }
+        }
+
+        // 4. Illegal Potted Balls Check (進球球種合法性)
+        if (targetPhase === 'red') {
+          if (pottedColors.length > 0) {
+            isFoul = true;
+            foulReason = `紅球階段彩球落袋！`;
+            const maxColorPts = Math.max(...pottedColors.map(c => c.pts));
+            penalty = Math.max(penalty, maxColorPts);
+          }
+        } else if (targetPhase === 'color') {
+          if (pottedReds.length > 0) {
+            isFoul = true;
+            foulReason = `彩球階段紅球落袋！`;
+            penalty = Math.max(penalty, 4);
+          }
+          if (pottedColors.length > 1) {
+            isFoul = true;
+            foulReason = `一桿擊進多顆彩球！`;
+            penalty = Math.max(penalty, ...pottedColors.map(c => c.pts));
+          }
+        } else if (targetPhase === 'seq_color') {
+          const expectedKey = sequenceColors[seqIndex];
+          const illegalColors = pottedColors.filter(c => c.id !== expectedKey);
+          if (illegalColors.length > 0) {
+            isFoul = true;
+            foulReason = `清台順序進球錯誤！進了非當前目標彩球。`;
+            penalty = Math.max(penalty, spots[expectedKey].pts, ...illegalColors.map(c => c.pts));
+          }
+        }
+
+        // -------------------------------------------------------------
+        // STEP 2: APPLY OUTCOMES BASED ON FOUL STATUS
+        // -------------------------------------------------------------
+        if (isFoul) {
+          pointsScored = 0;
+          nextStriker = opponentIndex;
+          respotBalls = [...pottedColors];
+          
+          if (remainingRedsCount > 0) {
+            nextPhase = 'red';
+          } else {
+            nextPhase = 'seq_color';
+          }
+
+          logText = `🚨 裁判判罰：【${strikerName}】${foulReason} 罰分 ${penalty} 分加給【${opponentName}】。球權移交。`;
+
+          return {
+            isFoul: true,
+            penalty,
+            foulReason,
+            pointsScored: 0,
+            nextPhase,
+            nextStriker,
+            respotBalls,
+            isFrameWon: false,
+            winnerIndex: null,
+            logText
+          };
+        }
+
+        // -------------------------------------------------------------
+        // STEP 3: LEGAL SCORING & PHASE TRANSITION
+        // -------------------------------------------------------------
+        if (targetPhase === 'red') {
+          if (pottedReds.length > 0) {
+            pointsScored = pottedReds.length * 1;
+            nextPhase = 'color';
+            nextStriker = strikerIndex;
+            logText = `✅ 進紅球 ${pottedReds.length} 顆！【${strikerName}】得分 +${pointsScored}，下一桿請擊打彩球。`;
+          } else {
+            pointsScored = 0;
+            nextPhase = remainingRedsCount > 0 ? 'red' : 'seq_color';
+            nextStriker = opponentIndex;
+            logText = `• 【${strikerName}】進攻未果，交出擊球權給【${opponentName}】。`;
+          }
+        } else if (targetPhase === 'color') {
+          if (pottedColors.length === 1) {
+            const pottedColor = pottedColors[0];
+            pointsScored = pottedColor.pts;
+            respotBalls = [pottedColor];
+            nextStriker = strikerIndex;
+
+            if (remainingRedsCount > 0) {
+              nextPhase = 'red';
+              logText = `✅ 進【${pottedColor.name}】！【${strikerName}】得分 +${pointsScored}，彩球復位，下一桿擊打紅球。`;
+            } else {
+              nextPhase = 'seq_color';
+              logText = `✅ 進【${pottedColor.name}】！【${strikerName}】得分 +${pointsScored}，紅球已全清，進入順序清彩球階段（黃->綠->棕->藍->粉->黑）。`;
+            }
+          } else {
+            pointsScored = 0;
+            nextPhase = remainingRedsCount > 0 ? 'red' : 'seq_color';
+            nextStriker = opponentIndex;
+            logText = `• 【${strikerName}】彩球未進，單桿結束，換【${opponentName}】擊球。`;
+          }
+        } else if (targetPhase === 'seq_color') {
+          const expectedKey = sequenceColors[seqIndex];
+          if (pottedColors.length === 1 && pottedColors[0].id === expectedKey) {
+            const c = pottedColors[0];
+            pointsScored = c.pts;
+            respotBalls = [];
+            nextStriker = strikerIndex;
+
+            if (seqIndex === sequenceColors.length - 1) {
+              isFrameWon = true;
+              logText = `🏆 【${c.name}】落袋！檯面全清，比賽結束！`;
+            } else {
+              nextPhase = 'seq_color';
+              const nextColorKey = sequenceColors[seqIndex + 1];
+              logText = `✅ 進【${c.name}】！【${strikerName}】得分 +${pointsScored}，下一目標球為【${spots[nextColorKey].name}】。`;
+            }
+          } else {
+            pointsScored = 0;
+            nextPhase = 'seq_color';
+            nextStriker = opponentIndex;
+            logText = `• 【${strikerName}】未進球，換【${opponentName}】擊球。`;
+          }
+        }
+
+        return {
+          isFoul: false,
+          penalty: 0,
+          foulReason: '',
+          pointsScored,
+          nextPhase,
+          nextStriker,
+          respotBalls,
+          isFrameWon,
+          winnerIndex: null,
+          logText
+        };
+      }
+    };
+
+    /* ========================================================================= */
+    /* MODULE 4: SNOOKER INTERACTION & MASTER ENGINE (用戶交互與高智商 AI 模塊)   */
+    /* ========================================================================= */
+    const SnookerPhysicsEngine = {
+      canvas: null,
+      ctx: null,
+      w: 880,
+      h: 480,
+      bounds: { minX: 38, maxX: 842, minY: 38, maxY: 442 },
+      ballR: 6.8,
+      friction: 0.9885,
+
+      pockets: [
+        { x: 38, y: 38, r: 18, type: 'corner_tl' },
+        { x: 440, y: 34, r: 16, type: 'middle_t' },
+        { x: 842, y: 38, r: 18, type: 'corner_tr' },
+        { x: 38, y: 442, r: 18, type: 'corner_bl' },
+        { x: 440, y: 446, r: 16, type: 'middle_b' },
+        { x: 842, y: 442, r: 18, type: 'corner_br' }
+      ],
+
+      spots: {
+        brown: { x: 210, y: 240, color: '#854d0e', name: '棕球', pts: 4 },
+        yellow: { x: 210, y: 175, color: '#eab308', name: '黃球', pts: 2 },
+        green: { x: 210, y: 305, color: '#16a34a', name: '綠球', pts: 3 },
+        blue: { x: 440, y: 240, color: '#2563eb', name: '藍球', pts: 5 },
+        pink: { x: 620, y: 240, color: '#ec4899', name: '粉球', pts: 6 },
+        black: { x: 760, y: 240, color: '#18181b', name: '黑球', pts: 7 }
+      },
+
+      sequenceColors: ['yellow', 'green', 'brown', 'blue', 'pink', 'black'],
+
+      // State
+      cueBall: null,
+      balls: [],
+      turn: 0, // 0: Player, 1: AI
+      playerNames: ['挑戰玩家', '卓林普 (AI)'],
+      scores: [0, 0],
+      currentBreak: 0,
+      targetPhase: 'red', // 'red' | 'color' | 'seq_color'
+      seqIndex: 0,
+      
+      aimAngle: 0,
+      power: 60,
+      spinType: 'center',
+      isMoving: false,
+      inHand: false,
+
+      firstHitBall: null,
+      pottedRedsTurn: [],
+      pottedColorsTurn: [],
+      loopRunning: false,
+      aiTimer: null,
+
+      init: function() {
+        this.canvas = $('snookerArenaCanvas');
+        if (!this.canvas) return;
+        this.ctx = this.canvas.getContext('2d');
+        this.setupBoard();
+        this.bindEvents();
+
+        if (!this.loopRunning) {
+          this.loopRunning = true;
+          requestAnimationFrame(() => this.loop());
+        }
+      },
+
+      setupBoard: function() {
+        this.balls = [];
+        this.scores = [0, 0];
+        this.currentBreak = 0;
+        this.turn = 0;
+        this.targetPhase = 'red';
+        this.seqIndex = 0;
+        this.isMoving = false;
+        this.inHand = false;
+        this.aimAngle = 0;
+        this.spinType = 'center';
+
+        // 1. White Cue Ball in D-zone
+        this.cueBall = {
+          id: 'cue',
+          x: 175, y: 220,
+          vx: 0, vy: 0,
+          spinX: 0, spinY: 0,
+          r: this.ballR,
+          color: '#f8fafc',
+          isColor: false,
+          isRed: false,
+          potted: false,
+          pts: 0,
+          name: '母球'
+        };
+        this.balls.push(this.cueBall);
+
+        // 2. 6 Official Color Balls on Spots
+        Object.keys(this.spots).forEach(key => {
+          const sp = this.spots[key];
+          this.balls.push({
+            id: key,
+            spotKey: key,
+            x: sp.x, y: sp.y,
+            vx: 0, vy: 0,
+            spinX: 0, spinY: 0,
+            r: this.ballR,
+            color: sp.color,
+            isColor: true,
+            isRed: false,
+            potted: false,
+            pts: sp.pts,
+            name: sp.name
+          });
+        });
+
+        // 3. 15 Matte Red Balls in Triangle Pack behind Pink ball
+        const startX = 636, startY = 240, r = this.ballR;
+        let redId = 1;
+        for (let col = 0; col < 5; col++) {
+          for (let row = 0; row <= col; row++) {
+            const x = startX + col * (r * 1.74);
+            const y = startY + (row - col / 2) * (r * 2.02);
+            this.balls.push({
+              id: `red_${redId++}`,
+              x, y,
+              vx: 0, vy: 0,
+              spinX: 0, spinY: 0,
+              r,
+              color: '#b91c1c',
+              isColor: false,
+              isRed: true,
+              potted: false,
+              pts: 1,
+              name: '紅球'
+            });
+          }
+        }
+
+        this.updateHUD();
+        this.logMessage('比賽開始。15 顆紅球排列完畢，6 顆彩球各就各位。請開球！');
+      },
+
+      bindEvents: function() {
+        if (!this.canvas) return;
+
+        const getCanvasPos = (e) => {
+          const rect = this.canvas.getBoundingClientRect();
+          const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+          const scaleX = rect.width ? (this.canvas.width / rect.width) : 1;
+          const scaleY = rect.height ? (this.canvas.height / rect.height) : 1;
+          return {
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
+          };
+        };
+
+        const handlePointerAim = (e) => {
+          if (this.isMoving || this.turn !== 0) return;
+          const pos = getCanvasPos(e);
+
+          if (this.inHand) {
+            const dDist = Math.hypot(pos.x - 210, pos.y - 240);
+            if (pos.x <= 210 && dDist <= 65) {
+              this.cueBall.x = pos.x;
+              this.cueBall.y = pos.y;
+              this.inHand = false;
+              $('snookerInHandTip').classList.add('hidden');
+              this.logMessage('母球已在 D 區手擺就位。');
+            }
+            return;
+          }
+
+          this.aimAngle = Math.atan2(pos.y - this.cueBall.y, pos.x - this.cueBall.x);
+          const deg = (((this.aimAngle * 180 / Math.PI) % 360) + 360) % 360;
+          if ($('snookerAngleSlider')) $('snookerAngleSlider').value = deg.toFixed(1);
+          if ($('snookerAimDegText')) $('snookerAimDegText').textContent = `${deg.toFixed(1)}°`;
+        };
+
+        this.canvas.onmousedown = handlePointerAim;
+        this.canvas.ontouchstart = handlePointerAim;
+        this.canvas.onmousemove = (e) => { if (e.buttons === 1) handlePointerAim(e); };
+        this.canvas.ontouchmove = handlePointerAim;
+      },
+
+      calculateRemainingMax: function() {
+        const remainingReds = this.balls.filter(b => b.isRed && !b.potted).length;
+        if (remainingReds > 0) {
+          if (this.targetPhase === 'color') {
+            return 7 + (remainingReds - 1) * 8 + 27;
+          } else {
+            return remainingReds * 8 + 27;
+          }
+        } else {
+          let pts = 0;
+          for (let i = this.seqIndex; i < this.sequenceColors.length; i++) {
+            pts += this.spots[this.sequenceColors[i]].pts;
+          }
+          return pts;
+        }
+      },
+
+      updateHUD: function() {
+        if ($('snookerSimScore0')) $('snookerSimScore0').textContent = this.scores[0];
+        if ($('snookerSimScore1')) $('snookerSimScore1').textContent = this.scores[1];
+        if ($('snookerSimBreakScore')) $('snookerSimBreakScore').textContent = `+${this.currentBreak}`;
+        if ($('snookerSimMaxPoints')) $('snookerSimMaxPoints').textContent = this.calculateRemainingMax();
+
+        const p0Active = (this.turn === 0);
+        $('snookerSimPlayerCard0').className = p0Active 
+          ? 'col-span-4 sm:col-span-4 p-2 sm:p-2.5 rounded-2xl border-2 border-brand-gold striker-active-glow bg-black/50 flex items-center gap-2 sm:gap-3 transition-all'
+          : 'col-span-4 sm:col-span-4 p-2 sm:p-2.5 rounded-2xl border border-white/10 bg-black/40 flex items-center gap-2 sm:gap-3 transition-all opacity-75';
+        $('snookerSimPlayerCard1').className = !p0Active 
+          ? 'col-span-4 sm:col-span-4 p-2 sm:p-2.5 rounded-2xl border-2 border-sky-400 striker-active-glow bg-black/50 flex items-center justify-end gap-2 sm:gap-3 transition-all'
+          : 'col-span-4 sm:col-span-4 p-2 sm:p-2.5 rounded-2xl border border-white/10 bg-black/40 flex items-center justify-end gap-2 sm:gap-3 transition-all opacity-75';
+
+        $('snookerSimStrikerBadge0').classList.toggle('hidden', !p0Active);
+        $('snookerSimStrikerBadge1').classList.toggle('hidden', p0Active);
+
+        // Update Target Ball Indicator
+        const tbEl = $('snookerSimTargetBall');
+        if (this.targetPhase === 'red') {
+          tbEl.innerHTML = `<span class=\"text-rose-400 font-black\">🔴 紅球 (1分)</span>`;
+        } else if (this.targetPhase === 'color') {
+          tbEl.innerHTML = `<span class=\"text-amber-300 font-black\">🎨 任意彩球 (2-7分)</span>`;
+        } else {
+          const curColorKey = this.sequenceColors[this.seqIndex] || 'black';
+          const sp = this.spots[curColorKey];
+          tbEl.innerHTML = `<span style=\"color:${sp.color}; font-weight:900;\">🎯 ${sp.name} (${sp.pts}分)</span>`;
+        }
+
+        const turnName = this.turn === 0 ? '挑戰玩家' : '名將 AI';
+        $('snookerSimTurnText').innerHTML = `
+          <span class=\"h-2 w-2 rounded-full ${this.turn === 0 ? 'bg-emerald-400' : 'bg-sky-400'} animate-pulse\"></span>
+          <span>輪到 <b class=\"${this.turn === 0 ? 'text-amber-300' : 'text-sky-300'}\">${turnName}</b> 出桿</span>
+        `;
+
+        // Update Shoot Button State
+        const btn = $('snookerShootBtn');
+        if (btn) {
+          if (this.isMoving) {
+            btn.innerHTML = `<span>⏳</span> <span>球體運動中...</span>`;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+          } else if (this.turn !== 0) {
+            btn.innerHTML = `<span>🤖</span> <span>AI 名將出桿中...</span>`;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+          } else {
+            btn.innerHTML = `<span>🎯</span> <span>擊球出桿 (SHOOT)</span>`;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+          }
+        }
+      },
+
+      logMessage: function(msg, isFoul = false) {
+        const logBox = $('snookerLiveLog');
+        if (!logBox) return;
+        const entry = document.createElement('div');
+        entry.className = isFoul ? 'text-rose-400 font-bold' : 'text-slate-200';
+        entry.innerHTML = `• ${msg}`;
+        logBox.appendChild(entry);
+        logBox.scrollTop = logBox.scrollHeight;
+      },
+
+      shoot: function(angle, powerRatio, spin) {
+        if (this.isMoving || this.cueBall.potted) return;
+
+        this.firstHitBall = null;
+        this.pottedRedsTurn = [];
+        this.pottedColorsTurn = [];
+
+        const speed = 2.5 + powerRatio * 18.5;
+        this.cueBall.vx = Math.cos(angle) * speed;
+        this.cueBall.vy = Math.sin(angle) * speed;
+
+        if (spin === 'left') { this.cueBall.spinX = -1.8; }
+        else if (spin === 'right') { this.cueBall.spinX = 1.8; }
+        else if (spin === 'top') { this.cueBall.spinY = 1.6; }
+        else if (spin === 'screw') { this.cueBall.spinY = -1.8; }
+        else { this.cueBall.spinX = 0; this.cueBall.spinY = 0; }
+
+        this.isMoving = true;
+        $('snookerSimPhysicsState').textContent = '物理模擬運算中...';
+        this.updateHUD();
+        playBallClackSound(0.35);
+      },
+
+      // Helper for AI: Checks if line between p1 and p2 is unobstructed by other active balls
+      isSegmentClear: function(p1, p2, ignoreBalls = []) {
+        const segDx = p2.x - p1.x;
+        const segDy = p2.y - p1.y;
+        const segLen = Math.hypot(segDx, segDy);
+        if (segLen === 0) return true;
+        const nx = segDx / segLen;
+        const ny = segDy / segLen;
+        const clearRadius = this.ballR * 1.85;
+
+        for (let b of this.balls) {
+          if (b.potted || ignoreBalls.includes(b)) continue;
+          const vx = b.x - p1.x;
+          const vy = b.y - p1.y;
+          const proj = vx * nx + vy * ny;
+          if (proj > 2 && proj < segLen - 2) {
+            const perpDistSq = (vx * vx + vy * vy) - (proj * proj);
+            if (perpDistSq < clearRadius * clearRadius) {
+              return false; // Obstructed
+            }
+          }
+        }
+        return true;
+      },
+
+      // Smart Snooker AI Engine with Obstacle Avoidance & Defensive Safety Strategy
+      triggerAiTurn: function() {
+        this.logMessage('🤖 名將 AI 正在精密計算母球進攻路線與防守線位...');
+        this.aiTimer = setTimeout(() => {
+          // 1. Identify Strictly Legal Target Balls
+          let legalTargets = [];
+          if (this.targetPhase === 'red') {
+            legalTargets = this.balls.filter(b => b.isRed && !b.potted);
+          } else if (this.targetPhase === 'color') {
+            legalTargets = this.balls.filter(b => b.isColor && !b.potted);
+          } else {
+            const targetKey = this.sequenceColors[this.seqIndex];
+            legalTargets = this.balls.filter(b => b.id === targetKey && !b.potted);
+          }
+
+          if (!legalTargets.length) {
+            legalTargets = this.balls.filter(b => !b.potted && b !== this.cueBall);
+          }
+
+          // 2. Evaluate All Direct Potting Opportunities
+          let bestPotCandidate = null;
+          let bestPotScore = Infinity;
+
+          for (let target of legalTargets) {
+            for (let pocket of this.pockets) {
+              // Check A: Path from Target to Pocket must be clear
+              if (!this.isSegmentClear(target, pocket, [target, this.cueBall])) continue;
+
+              // Target to pocket geometry
+              const dTP = Math.hypot(pocket.x - target.x, pocket.y - target.y);
+              const angleTP = Math.atan2(pocket.y - target.y, pocket.x - target.x);
+              
+              // Ghost ball center
+              const ghostX = target.x - Math.cos(angleTP) * (this.ballR * 2);
+              const ghostY = target.y - Math.sin(angleTP) * (this.ballR * 2);
+              const ghostPos = { x: ghostX, y: ghostY };
+
+              // Check table boundaries for ghost ball
+              if (ghostX < this.bounds.minX || ghostX > this.bounds.maxX || ghostY < this.bounds.minY || ghostY > this.bounds.maxY) continue;
+
+              // Check B: Path from Cue Ball to Ghost Ball must be completely unobstructed
+              if (!this.isSegmentClear(this.cueBall, ghostPos, [this.cueBall, target])) continue;
+
+              // Check C: Cut angle validity
+              const angleCG = Math.atan2(ghostY - this.cueBall.y, ghostX - this.cueBall.x);
+              const dCG = Math.hypot(ghostX - this.cueBall.x, ghostY - this.cueBall.y);
+
+              // Angle difference between Cue->Ghost and Ghost->Pocket
+              let cutAngle = Math.abs(angleCG - angleTP);
+              while (cutAngle > Math.PI) cutAngle = Math.abs(cutAngle - Math.PI * 2);
+
+              // Max cut angle allowed in snooker is ~72 degrees (1.25 rad)
+              if (cutAngle > 1.25) continue;
+
+              // Candidate quality score (lower is easier/better)
+              // Give preference to high value color balls (black, pink, blue)
+              const ballValueBonus = target.isColor ? (target.pts * 12) : 0;
+              const potScore = dTP * 0.75 + dCG * 0.85 + cutAngle * 180 - ballValueBonus;
+
+              if (potScore < bestPotScore) {
+                bestPotScore = potScore;
+                bestPotCandidate = {
+                  angle: angleCG,
+                  target,
+                  pocket,
+                  dist: dTP + dCG,
+                  cutAngle,
+                  isPot: true
+                };
+              }
+            }
+          }
+
+          let selectedShot = null;
+
+          if (bestPotCandidate) {
+            // Valid pot found!
+            selectedShot = bestPotCandidate;
+            this.logMessage(`🤖 AI 鎖定目標：【${selectedShot.target.name}】嘗試進攻袋口！`);
+          } else {
+            // No direct pot available -> Play a Smart Safety Defense Shot (防守安全球)
+            // Find a legal target with direct line of sight, hit it softly towards the baulk cushion
+            let safetyTarget = null;
+            let minSafetyDist = Infinity;
+
+            for (let target of legalTargets) {
+              if (this.isSegmentClear(this.cueBall, target, [this.cueBall, target])) {
+                const d = Math.hypot(target.x - this.cueBall.x, target.y - this.cueBall.y);
+                if (d < minSafetyDist) {
+                  minSafetyDist = d;
+                  safetyTarget = target;
+                }
+              }
+            }
+
+            if (safetyTarget) {
+              const angleDirect = Math.atan2(safetyTarget.y - this.cueBall.y, safetyTarget.x - this.cueBall.x);
+              selectedShot = {
+                angle: angleDirect,
+                target: safetyTarget,
+                dist: minSafetyDist,
+                isPot: false,
+                power: 0.35
+              };
+              this.logMessage(`🤖 AI 球型不利，選擇擊打【${safetyTarget.name}】進行安全球防守。`);
+            } else {
+              // Snookered: Aim towards the closest legal target ball anyway to attempt an escape
+              const fallbackTarget = legalTargets[0] || this.balls[1];
+              const angleFallback = Math.atan2(fallbackTarget.y - this.cueBall.y, fallbackTarget.x - this.cueBall.x);
+              selectedShot = {
+                angle: angleFallback,
+                target: fallbackTarget,
+                dist: 300,
+                isPot: false,
+                power: 0.45
+              };
+              this.logMessage(`🤖 AI 解障礙球防守出桿。`);
+            }
+          }
+
+          // 3. Apply Difficulty Accuracy Modifier
+          const diff = $('snookerAiDiff') ? $('snookerAiDiff').value : 'master';
+          let error = 0;
+          if (diff === 'easy') error = (Math.random() - 0.5) * 0.04;
+          else if (diff === 'master') error = (Math.random() - 0.5) * 0.009;
+          else if (diff === 'legend') error = (Math.random() - 0.5) * 0.002;
+
+          const finalAngle = selectedShot.angle + error;
+          const powerRatio = selectedShot.isPot 
+            ? Math.min(0.82, Math.max(0.38, selectedShot.dist / 780 + 0.22)) 
+            : (selectedShot.power || 0.36);
+
+          this.aimAngle = finalAngle;
+          this.shoot(finalAngle, powerRatio, 'center');
+        }, 1100);
+      },
+
+      respotColorBall: function(ball) {
+        const spot = this.spots[ball.spotKey];
+        if (!spot) return;
+
+        let targetX = spot.x, targetY = spot.y;
+        let isOccupied = this.balls.some(b => !b.potted && b !== ball && Math.hypot(b.x - targetX, b.y - targetY) < b.r + ball.r);
+
+        if (isOccupied) {
+          const spotKeysDesc = ['black', 'pink', 'blue', 'brown', 'green', 'yellow'];
+          for (let k of spotKeysDesc) {
+            const alt = this.spots[k];
+            const occ = this.balls.some(b => !b.potted && b !== ball && Math.hypot(b.x - alt.x, b.y - alt.y) < b.r + ball.r);
+            if (!occ) {
+              targetX = alt.x;
+              targetY = alt.y;
+              isOccupied = false;
+              break;
+            }
+          }
+        }
+
+        ball.x = targetX;
+        ball.y = targetY;
+        ball.vx = 0;
+        ball.vy = 0;
+        ball.potted = false;
+        this.logMessage(`裁判將【${ball.name}】放回專屬點位。`);
+      },
+
+      onPhysicsRest: function() {
+        const remainingReds = this.balls.filter(b => b.isRed && !b.potted).length;
+
+        const judgment = SnookerReferee.validateAndScoreShot({
+          targetPhase: this.targetPhase,
+          firstHitBall: this.firstHitBall,
+          cuePotted: this.cueBall.potted,
+          pottedReds: this.pottedRedsTurn,
+          pottedColors: this.pottedColorsTurn,
+          remainingRedsCount: remainingReds,
+          seqIndex: this.seqIndex,
+          sequenceColors: this.sequenceColors,
+          spots: this.spots,
+          strikerIndex: this.turn,
+          playerNames: this.playerNames
+        });
+
+        this.logMessage(judgment.logText, judgment.isFoul);
+
+        if (judgment.isFoul) {
+          playFoulSound();
+          const opponent = 1 - this.turn;
+          this.scores[opponent] += judgment.penalty;
+          this.currentBreak = 0;
+          speak(`犯規，罰分${judgment.penalty}分`);
+
+          judgment.respotBalls.forEach(b => this.respotColorBall(b));
+
+          if (this.cueBall.potted) {
+            this.cueBall.potted = false;
+            this.cueBall.x = 175;
+            this.cueBall.y = 220;
+            this.cueBall.vx = 0;
+            this.cueBall.vy = 0;
+            if (judgment.nextStriker === 0) {
+              this.inHand = true;
+              $('snookerInHandTip').classList.remove('hidden');
+            }
+          }
+
+          this.targetPhase = judgment.nextPhase;
+          this.turn = judgment.nextStriker;
+          this.updateHUD();
+
+          if (this.turn === 1) this.triggerAiTurn();
+          return;
+        }
+
+        if (judgment.pointsScored > 0) {
+          this.scores[this.turn] += judgment.pointsScored;
+          this.currentBreak += judgment.pointsScored;
+          judgment.respotBalls.forEach(b => this.respotColorBall(b));
+
+          if (this.targetPhase === 'seq_color') {
+            this.seqIndex++;
+          }
+
+          if (judgment.isFrameWon) {
+            playWinSound('big');
+            const winner = this.scores[0] >= this.scores[1] ? this.playerNames[0] : this.playerNames[1];
+            this.logMessage(`🎉 比賽結束！【${winner}】獲勝！`);
+            speak(`比賽結束，${winner}獲勝`);
+            notice(`🏆 比賽結束！${winner} 贏得本局！`);
+          } else {
+            this.targetPhase = judgment.nextPhase;
+            this.updateHUD();
+            if (this.turn === 1) this.triggerAiTurn();
+          }
+        } else {
+          this.currentBreak = 0;
+          this.targetPhase = judgment.nextPhase;
+          this.turn = judgment.nextStriker;
+          this.updateHUD();
+          if (this.turn === 1) this.triggerAiTurn();
+        }
+
+        this.updateHUD();
+      },
+
+      loop: function() {
+        if (currentMainTab === 'arcade') {
+          if (this.isMoving) {
+            const stillMoving = SnookerPhysics.step(
+              this.balls,
+              this.cueBall,
+              this.bounds,
+              this.pockets,
+              this.friction,
+              (hitBall) => { if (!this.firstHitBall) this.firstHitBall = hitBall; },
+              (pottedBall) => {
+                playPotSound(pottedBall.pts || 1);
+                spawnSparks(pottedBall.x, pottedBall.y, pottedBall.color, 25);
+                if (pottedBall.isRed) this.pottedRedsTurn.push(pottedBall);
+                else if (pottedBall.isColor) this.pottedColorsTurn.push(pottedBall);
+              }
+            );
+
+            if (!stillMoving) {
+              this.isMoving = false;
+              $('snookerSimPhysicsState').textContent = '球體靜止';
+              this.onPhysicsRest();
+            }
+          }
+
+          SnookerRenderer.draw(this.ctx, {
+            w: this.w,
+            h: this.h,
+            bounds: this.bounds,
+            pockets: this.pockets,
+            spots: this.spots,
+            cueBall: this.cueBall,
+            balls: this.balls,
+            aimAngle: this.aimAngle,
+            power: this.power,
+            spinType: this.spinType,
+            isMoving: this.isMoving,
+            turn: this.turn,
+            inHand: this.inHand
+          });
+        }
+
+        requestAnimationFrame(() => this.loop());
+      }
+    };
+
+    /* ------------------------------------------------------------- */
+    /* UI Interaction Functions for Snooker Simulation                */
+    /* ------------------------------------------------------------- */
+    function restartSnookerMatch() {
+      SnookerPhysicsEngine.setupBoard();
+      notice('🏆 斯諾克比賽已重新開球！');
+    }
+
+    function executeSnookerShot() {
+      if (SnookerPhysicsEngine.isMoving || SnookerPhysicsEngine.turn !== 0) return;
+      const powerRatio = (+$('snookerPowerSlider').value || 60) / 100;
+      SnookerPhysicsEngine.shoot(SnookerPhysicsEngine.aimAngle, powerRatio, SnookerPhysicsEngine.spinType);
+    }
+
+    function handleAngleSlider(val) {
+      SnookerPhysicsEngine.aimAngle = (val * Math.PI) / 180;
+      if ($('snookerAimDegText')) $('snookerAimDegText').textContent = `${(+val).toFixed(1)}°`;
+    }
+
+    function adjustAimAngle(deltaDeg) {
+      let cur = (SnookerPhysicsEngine.aimAngle * 180 / Math.PI) + deltaDeg;
+      cur = ((cur % 360) + 360) % 360;
+      SnookerPhysicsEngine.aimAngle = (cur * Math.PI) / 180;
+      if ($('snookerAngleSlider')) $('snookerAngleSlider').value = cur.toFixed(1);
+      if ($('snookerAimDegText')) $('snookerAimDegText').textContent = `${cur.toFixed(1)}°`;
+    }
+
+    function handlePowerSlider(val) {
+      SnookerPhysicsEngine.power = +val;
+      if ($('snookerPowerText')) $('snookerPowerText').textContent = `${val}%`;
+    }
+
+    function setSpin(type) {
+      SnookerPhysicsEngine.spinType = type;
+      const labels = {
+        center: '無塞 (中桿)',
+        left: '左塞 (吃庫向左)',
+        right: '右塞 (吃庫向右)',
+        top: '高桿 (跟進)',
+        screw: '低桿 (回拉)'
+      };
+      if ($('snookerCueSpinBadge')) $('snookerCueSpinBadge').textContent = labels[type] || '無塞';
+
+      ['top', 'center', 'screw', 'left', 'right'].forEach(t => {
+        const btn = $('spinBtn_' + t);
+        if (btn) {
+          if (t === type) {
+            btn.className = 'tactile-press py-1.5 rounded-lg bg-brand-gold text-stone-950 font-black shadow';
+          } else {
+            btn.className = 'tactile-press py-1.5 rounded-lg bg-stone-900 border border-white/10 text-slate-300 hover:border-brand-gold';
+          }
+        }
+      });
+      notice(`已設定桿法：${labels[type]}`);
+    }
+
+    function updateAiDiff() {
+      const d = $('snookerAiDiff').value;
+      const names = { easy: '新手練習', master: '大師 AI', legend: '奧蘇利雲 (傳奇AI)' };
+      SnookerPhysicsEngine.logMessage(`AI 難度已設定為：【${names[d]}】`);
+    }
+
+    /* ------------------------------------------------------------- */
+    /* Shared Modals (Handicap, Matchup, Settlement, History, Room) */
+    /* ------------------------------------------------------------- */
+    function openModal(html) {
+      const modal = $('modal'), modalBox = $('modalBox');
+      modalBox.innerHTML = html;
+      modal.classList.remove('hidden');
+      modal.offsetHeight;
+      modal.classList.add('opacity-100');
+      modal.classList.remove('opacity-0');
+      modalBox.classList.add('scale-100', 'translate-y-0', 'opacity-100');
+      modalBox.classList.remove('scale-95', 'translate-y-4', 'opacity-0');
+    }
+
+    function closeModal() {
+      const modal = $('modal'), modalBox = $('modalBox');
+      modal.classList.remove('opacity-100');
+      modal.classList.add('opacity-0');
+      modalBox.classList.remove('scale-100', 'translate-y-0', 'opacity-100');
+      modalBox.classList.add('scale-95', 'translate-y-4', 'opacity-0');
+      setTimeout(() => modal.classList.add('hidden'), 250);
+    }
+
+    function openFoul() {
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-xl font-black text-rose-400 flex items-center gap-2\">🚨 犯規判罰 (FOUL)</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white text-lg\">✕</button>
+        </div>
+        <p class=\"mt-3 text-xs leading-relaxed text-amber-200 bg-stone-950 p-3 rounded-2xl border border-brand-gold/30\">
+          ⚠️ 提示：禁止輕貼目標球。犯規分將直接加給上一位擊球選手，並強制鎖定進入 1v1 互搏對決！
+        </p>
+        <div class=\"grid grid-cols-4 gap-2.5 mt-5\">
+          <button onclick=\"applyFoul(4)\" class=\"tactile-press rounded-2xl bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-500/80 py-4 text-2xl sm:text-3xl font-black text-white shadow-xl\">
+            4<small class=\"block text-xs font-semibold text-rose-200 mt-0.5\">分</small>
+          </button>
+          <button onclick=\"applyFoul(5)\" class=\"tactile-press rounded-2xl bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-500/80 py-4 text-2xl sm:text-3xl font-black text-white shadow-xl\">
+            5<small class=\"block text-xs font-semibold text-rose-200 mt-0.5\">分</small>
+          </button>
+          <button onclick=\"applyFoul(6)\" class=\"tactile-press rounded-2xl bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-500/80 py-4 text-2xl sm:text-3xl font-black text-white shadow-xl\">
+            6<small class=\"block text-xs font-semibold text-rose-200 mt-0.5\">分</small>
+          </button>
+          <button onclick=\"applyFoul(7)\" class=\"tactile-press rounded-2xl bg-gradient-to-b from-rose-900 to-stone-950 border border-rose-500/80 py-4 text-2xl sm:text-3xl font-black text-white shadow-xl\">
+            7<small class=\"block text-xs font-semibold text-rose-200 mt-0.5\">分</small>
+          </button>
+        </div>
+        <button onclick=\"closeModal()\" class=\"tactile-press mt-5 w-full rounded-2xl bg-stone-900 py-3.5 text-sm font-bold text-slate-200 hover:bg-stone-800 border border-white/10\">取消</button>
+      `);
+    }
+
+    function openMatchup() {
+      let opts = S.names.map((n, i) => `<option value=\"${i}\">${n}</option>`).join('');
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-xl font-black text-sky-400 flex items-center gap-2\">🎯 自訂指定 PK 對決</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white text-lg\">✕</button>
+        </div>
+        <div class=\"space-y-4 mt-4 text-xs sm:text-sm\">
+          <label class=\"block text-slate-300 font-bold\">
+            當前擊球者 (上桌出桿)
+            <select id=\"customA\" class=\"mt-1.5 w-full rounded-xl border border-brand-gold/20 bg-stone-900 p-3.5 text-white font-bold focus:outline-none focus:border-brand-gold\">${opts}</select>
+          </label>
+          <label class=\"block text-slate-300 font-bold\">
+            PK 目標對手 (鎖定上家)
+            <select id=\"customU\" class=\"mt-1.5 w-full rounded-xl border border-brand-gold/20 bg-stone-900 p-3.5 text-white font-bold focus:outline-none focus:border-brand-gold\">${opts}</select>
+          </label>
+        </div>
+        <button onclick=\"applyMatchup()\" class=\"tactile-press mt-6 w-full rounded-2xl bg-gradient-to-r from-amber-400 via-brand-gold to-yellow-400 py-4 text-sm font-black text-stone-950 shadow-xl shadow-amber-950/70 hover:brightness-110\">確認指定對決</button>
+      `);
+    }
+
+    function applyMatchup() {
+      const a = +$('customA').value, u = +$('customU').value;
+      if (a === u) return notice('擊球者與對手不能相同');
+      snapThree();
+      S.active = a;
+      S.upstream = u;
+      S.combat = true;
+      S.scorer = a;
+      S.break = 0;
+      S.turnScored = false;
+      S.breakBalls = [];
+      closeModal();
+      notice(`已設定 ${S.names[a]} PK ${S.names[u]}`);
+      renderThree();
+    }
+
+    function openHandicap() {
+      const o = S.names.map((n, i) => `<option value=\"${i}\">${n}</option>`).join('');
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-xl font-black text-brand-gold flex items-center gap-2\">⚖️ 自訂讓分補償設定</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white text-lg\">✕</button>
+        </div>
+        <div class=\"grid grid-cols-1 gap-3.5 mt-4 text-xs sm:text-sm\">
+          <label class=\"text-slate-300 font-bold\">
+            讓分玩家 (出分方)
+            <select id=\"giver\" class=\"mt-1.5 w-full rounded-xl border border-brand-gold/20 bg-stone-900 p-3 text-white font-bold\">${o}</select>
+          </label>
+          <label class=\"text-slate-300 font-bold\">
+            受讓玩家 (獲益方)
+            <select id=\"receiver\" class=\"mt-1.5 w-full rounded-xl border border-brand-gold/20 bg-stone-900 p-3 text-white font-bold\">${o}</select>
+          </label>
+          <label class=\"text-slate-300 font-bold\">
+            讓分分值
+            <input id=\"handicapPoints\" type=\"number\" min=\"1\" value=\"20\" class=\"mt-1.5 w-full rounded-xl border border-brand-gold/20 bg-stone-900 p-3 text-amber-300 font-bold text-lg\">
+          </label>
+        </div>
+        <div class=\"grid grid-cols-2 gap-3 mt-5\">
+          <button onclick=\"applyHandicap()\" class=\"tactile-press rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 py-3.5 text-stone-950 font-black text-xs\">套用讓分</button>
+          <button onclick=\"clearHandicap()\" class=\"tactile-press rounded-2xl bg-stone-900 border border-rose-500/40 py-3.5 text-rose-300 font-bold text-xs\">全部清空</button>
+        </div>
+      `);
+    }
+
+    function applyHandicap() {
+      const g = +$('giver').value, r = +$('receiver').value, p = +$('handicapPoints').value;
+      if (g === r || !p) return notice('請選擇不同玩家與有效分值');
+      snapThree();
+      S.handicap[g][r] = p;
+      closeModal();
+      notice(`已設定讓分 ${S.names[g]} → ${S.names[r]} ${p}分`);
+      renderThree();
+    }
+
+    function clearHandicap() {
+      snapThree();
+      S.handicap = [[0,0,0], [0,0,0], [0,0,0]];
+      closeModal();
+      renderThree();
+      notice('已清空所有讓分');
+    }
+
+    function openSettlement() {
+      const outcome = v => v > 0 ? `<b class=\"text-amber-400 font-bold\">贏 +${v} 分</b>` : v < 0 ? `<b class=\"text-rose-400 font-bold\">輸 −${Math.abs(v)} 分</b>` : `<b class=\"text-slate-400\">持平 0 分</b>`;
+      const cards = S.names.map((name, i) => {
+        const opponents = [0, 1, 2].filter(j => j !== i);
+        const lines = opponents.map(j => {
+          const d = S.matrix[i][j] - S.matrix[j][i] + S.handicap[j][i] - S.handicap[i][j];
+          return `<li class=\"flex justify-between items-center py-1.5 border-b border-brand-gold/15\"><span>對 ${S.names[j]}</span>${outcome(d)}</li>`;
+        }).join('');
+        const total = net(i);
+        const avatarUrl = S.avatars[i] || SNOOKER_LEGENDS[0].img;
+        return `
+          <div class=\"rounded-2xl border border-brand-gold/25 bg-black/60 p-4 text-xs sm:text-sm\">
+            <div class=\"flex justify-between items-center border-b border-brand-gold/20 pb-2\">
+              <div class=\"flex items-center gap-2\">
+                <img src=\"${avatarUrl}\" class=\"h-8 w-8 rounded-full object-cover border border-brand-gold bg-stone-900\">
+                <b class=\"text-sm sm:text-base text-white font-bold\">${name}</b>
+              </div>
+              <b class=\"num-tabular text-base sm:text-lg ${total > 0 ? 'text-amber-400' : total < 0 ? 'text-rose-400' : 'text-slate-200'}\">
+                淨計分 ${total > 0 ? '+' : ''}${total} 分
+              </b>
+            </div>
+            <ul class=\"mt-2 space-y-1 font-mono text-slate-300\">${lines}</ul>
+          </div>
+        `;
+      }).join('');
+
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-xl font-black text-brand-gold flex items-center gap-2\">🏁 三人追分最終結算</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white text-lg\">✕</button>
+        </div>
+        <div class=\"mt-4 space-y-3\">${cards}</div>
+        <button onclick=\"closeModal()\" class=\"tactile-press mt-5 w-full rounded-2xl bg-stone-900 py-3.5 text-sm font-bold text-slate-200 hover:bg-stone-800 border border-white/10\">關閉</button>
+      `);
+    }
+
+    function openHistory(type = 'three') {
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-xl font-black text-brand-gold flex items-center gap-2\">📜 對局紀錄</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white text-lg\">✕</button>
+        </div>
+        <div class=\"mt-4 text-xs text-slate-400 py-6 text-center\">
+          對局進行中，所有進球、犯規與局分已即時計算至計分板。
+        </div>
+        <button onclick=\"closeModal()\" class=\"tactile-press mt-2 w-full rounded-2xl bg-stone-900 py-3.5 text-sm font-bold text-slate-200 border border-white/10\">關閉</button>
+      `);
+    }
+
+    function toggleCast() {
+      const cast = $('cast');
+      if (cast.classList.contains('hidden')) {
+        cast.classList.remove('hidden');
+        cast.offsetHeight;
+        cast.classList.add('opacity-100', 'scale-100');
+        cast.classList.remove('opacity-0', 'scale-98');
+        renderCast();
+      } else {
+        cast.classList.remove('opacity-100', 'scale-100');
+        cast.classList.add('opacity-0', 'scale-98');
+        setTimeout(() => cast.classList.add('hidden'), 300);
+      }
+    }
+
+    function renderCast() {
+      $('castGrid').innerHTML = S.names.map((n, i) => `
+        <div class=\"rounded-3xl p-6 sm:p-10 text-center ${i === S.active ? 'border-2 border-brand-gold bg-gradient-to-b from-[#2a2010] to-[#0a0805] shadow-2xl scale-105' : 'border border-brand-gold/20 bg-stone-900/90'}\">
+          <img src=\"${S.avatars[i]}\" class=\"h-20 w-20 sm:h-28 sm:w-28 rounded-full object-cover mx-auto mb-4 border-2 ${i === S.active ? 'border-brand-gold shadow-2xl' : 'border-brand-gold/30'} bg-stone-900\">
+          <p class=\"text-base sm:text-2xl font-black text-slate-200\">${n}${i === S.active ? ' · <span class=\"text-brand-gold font-black animate-pulse\">出桿中</span>' : ''}</p>
+          <p class=\"num-tabular text-6xl sm:text-8xl md:text-9xl font-black mt-4 ${net(i) >= 0 ? 'text-white' : 'text-rose-400'}\">${S.scores[i]}</p>
+          <p class=\"mt-4 text-sm sm:text-2xl font-bold text-amber-400 font-mono\">淨分 ${net(i) > 0 ? '+' : ''}${net(i)}</p>
+        </div>
+      `).join('');
+      $('castStatus').textContent = `三人追分實時戰況`;
+    }
+
+    function openRoomModal() {
+      openModal(`
+        <div class=\"flex items-center justify-between border-b border-brand-gold/20 pb-3\">
+          <h3 class=\"text-xl font-black text-brand-gold flex items-center gap-2\">🌐 雲端連線房間</h3>
+          <button onclick=\"closeModal()\" class=\"text-slate-400 hover:text-white text-lg\">✕</button>
+        </div>
+        <div class=\"mt-4 space-y-3.5 text-xs sm:text-sm\">
+          <div>
+            <label class=\"block text-slate-300 font-bold mb-1\">自訂房間號碼 (6位數)</label>
+            <input id=\"inputRoomId\" value=\"888666\" class=\"w-full rounded-xl bg-stone-900 border border-brand-gold/20 p-3 text-white font-mono font-bold focus:outline-none focus:border-brand-gold text-base\">
+          </div>
+          <div>
+            <label class=\"block text-slate-300 font-bold mb-1\">房間密碼 (留空則公開)</label>
+            <input id=\"inputRoomPwd\" type=\"password\" placeholder=\"留空或輸入密碼\" class=\"w-full rounded-xl bg-stone-900 border border-brand-gold/20 p-3 text-white font-mono focus:outline-none focus:border-brand-gold\">
+          </div>
+          <button onclick=\"closeModal(); notice('已連線至房間 888666，即時同步中！');\" class=\"tactile-press mt-2 w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-brand-gold to-yellow-400 text-stone-950 font-black text-sm shadow-xl hover:brightness-110\">
+            🚀 進入 / 建立房間
+          </button>
+        </div>
+      `);
+    }
+
+    // Initialize all modes on DOM ready
+    window.addEventListener('DOMContentLoaded', () => {
+      renderThree();
+      renderEightBall();
+      renderSnooker2p();
+    });
+
+    renderThree();
+    renderEightBall();
+    renderSnooker2p();
+  </script>
+</body>
+</html>
